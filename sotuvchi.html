@@ -278,7 +278,6 @@ function toast(t, bad) { const e = $("#toast"); e.textContent = t; e.classList.t
 const errText = e => {
   const c = e?.code || "";
   if (/invalid-credential|wrong-password|user-not-found/.test(c)) return "Telefon raqami yoki parol noto'g'ri";
-  if (c === "x-inactive") return "Bu login bloklangan yoki parol yangilangan. Admin bergan yangi parol bilan kiring";
   if (c.includes("too-many-requests")) return "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring";
   if (c.includes("network") || c.includes("unavailable")) return "Internet aloqasi yo'q. Tekshirib, qayta urinib ko'ring";
   if (c.includes("permission-denied")) return "Amal rad etildi. Telefon allaqachon sotilgan yoki ma'lumotlar o'zgargan bo'lishi mumkin — sahifani yangilab, qayta urinib ko'ring";
@@ -344,36 +343,8 @@ async function loadAll() {
   $("#meBranch").textContent = S.branch.name;
 }
 
-
-/* ---- Login: telefon raqami → ichki email. Parol admin tomonidan tiklanganda
-   xodimga "+v2", "+v3" ... qo'shimchali yangi ichki login beriladi. ---- */
-const MAX_ALIAS = 4;
-const emailFor = (phone, k) => k <= 1 ? `${phone}@${LOGIN_DOMAIN}` : `${phone}+v${k}@${LOGIN_DOMAIN}`;
-let loggingIn = false;
-async function loginWithPhone(input, pw) {
-  const raw = digits(input), norm = normPhone(raw), bases = [norm];
-  if (norm !== raw) bases.push(raw); else if (raw.length === 12 && raw.startsWith("998")) bases.push(raw.slice(3));
-  let last = null, inactive = false;
-  loggingIn = true;
-  try {
-    for (const base of bases) for (let k = 1; k <= MAX_ALIAS; k++) {
-      try {
-        const cred = await signInWithEmailAndPassword(auth, emailFor(base, k), pw);
-        const ps = await getDoc(doc(db, "profiles", cred.user.uid));
-        if (ps.exists() && ps.data().active) return cred;
-        inactive = true; await signOut(auth);
-      } catch (e) {
-        if (!/invalid-credential|user-not-found|wrong-password|invalid-email|permission-denied/.test(e.code || "")) throw e;
-        last = e;
-      }
-    }
-    throw inactive ? {code: "x-inactive"} : (last || {code: "auth/invalid-credential"});
-  } finally { loggingIn = false; }
-}
-
 /* ================= AUTH ================= */
 onAuthStateChanged(auth, async user => {
-  if (loggingIn) return;
   if (!user) { show("login"); return; }
   try {
     const ps = await getDoc(doc(db, "profiles", user.uid));
@@ -390,8 +361,14 @@ function loginError(t) { show("login"); const e = $("#loginErr"); e.textContent 
 $("#lShow").addEventListener("change", e => $("#lPass").type = e.target.checked ? "text" : "password");
 $("#loginForm").addEventListener("submit", async ev => {
   ev.preventDefault(); $("#loginErr").classList.add("hidden"); $("#loginBtn").disabled = true;
-  try { await loginWithPhone($("#lPhone").value, $("#lPass").value); location.reload(); return; }
-  catch (e) { loginError(errText(e)); }
+  const raw = digits($("#lPhone").value), pw = $("#lPass").value;
+  try {
+    try { await signInWithEmailAndPassword(auth, `${normPhone(raw)}@${LOGIN_DOMAIN}`, pw); }
+    catch (e1) {
+      const alt = normPhone(raw) !== raw ? raw : (raw.length === 12 && raw.startsWith("998") ? raw.slice(3) : null);
+      if (alt && /invalid-credential|user-not-found/.test(e1.code || "")) await signInWithEmailAndPassword(auth, `${alt}@${LOGIN_DOMAIN}`, pw); else throw e1;
+    }
+  } catch (e) { loginError(errText(e)); }
   $("#loginBtn").disabled = false;
 });
 
