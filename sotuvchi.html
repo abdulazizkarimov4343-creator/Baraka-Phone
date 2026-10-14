@@ -500,7 +500,7 @@ function condSvg(kind, v) {
 }
 
 /* ================= TRADE-IN WIZARD ================= */
-const STEPS = ["Narxlash", "Almashtirish", "Nasiya", "Rasmlar"];
+const STEPS = ["Narxlash", "Almashtirish", "Nasiya", "Tasdiqlash"];
 const PHOTO_SLOTS = ["Old tomoni", "Orqa tomoni", "Yoqilgan ekran", "IMEI (*#06#)"];
 const QS = [
   {k: "brand", t: "Telefon brendi qaysi?"},
@@ -558,7 +558,7 @@ function renderWizard() {
   }
   if (W.step === 3) {
     const s = ourStock(), diff = diffUzs(), p = diff > 0 ? plan(diff, W.months) : null;
-    h += `<button class="qback" data-act="prev">← Orqaga</button>` + hero("◉", "Rasmlar va tasdiqlash", "Mijoz telefonini suratga oling va shartnomani tasdiqlang") + `<div class="photos">${PHOTO_SLOTS.map((s, i) => `<label class="ph">${W.photos[i] ? `<img src="${W.photos[i]}" alt="${esc(s)}"><span class="lab">${esc(s)}</span>` : `<span class="plus">+</span><span>${esc(s)}</span>`}<input type="file" accept="image/*" capture="environment" data-ph="${i}"></label>`).join("")}</div><p class="hint">Rasmlar siqilib saqlanadi. Tavsiya etiladi, lekin majburiy emas.</p>
+    h += `<button class="qback" data-act="prev">← Orqaga</button>` + hero("✓", "Tasdiqlash", "Shartnomani tekshiring va tasdiqlang") + `
     <h3>Shartnoma xulosasi</h3>
     <div class="kv">
       <div><div class="k">Mijoz topshiradi</div><div class="v" style="font-size:16px">${esc(curModel().name)} ${esc(W.mem)}</div><div class="k">${uzs(c.uzs)}</div></div>
