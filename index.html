@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-8";
+const APP_VERSION = "2026.10.15-9";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -954,6 +954,14 @@ function renderArizalar() {
     } catch (e) { b.disabled = false; toast(errText(e), true); }
   });
   // Tekshiruvda xato topilsa — telefon bahosini qo'lda o'zgartirish (sotuvchi trade-in'ni shu narx bilan boshlaydi)
+  // Baho o'zgarsa — qo'shimcha to'lov va nasiya ham qayta hisoblanadi (sotuvchi ilovasidagi formula bilan bir xil)
+  const rateFor = m => (S.settings.tiers.find(t => m <= t.to) || S.settings.tiers[S.settings.tiers.length - 1]).rate;
+  const plan = (diff, m) => { const monthly = Math.ceil((diff + diff * rateFor(m) * m / 100) / m / 1000) * 1000; return {monthly, total: monthly * m}; };
+  const repay = (x, devUzs) => {
+    if (!x.ourModel) return {};
+    const diff = x.ourUzs - devUzs, months = diff > 0 ? (x.months || 6) : 0, p = months ? plan(diff, months) : null;
+    return {diffUzs: diff, payType: p ? "nasiya" : "", months, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0};
+  };
   document.querySelectorAll("[data-arzprice]").forEach(b => b.onclick = () => {
     const x = S.arizalar.find(a => a.id === b.dataset.arzprice);
     modal(`<h2>Bahoni o'zgartirish</h2><p class="sub">${esc(x.device?.name || "")} ${esc(x.device?.mem || "")}. Hisoblangan baho: <b>${uzs(x.deviceUzs)}</b></p>
@@ -965,15 +973,15 @@ function renderArizalar() {
     $("#apNo").onclick = closeModal;
     const save = async data => {
       try { await updateDoc(doc(db, "arizalar", x.id), {...data, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
-            Object.assign(x, data); closeModal(); renderArizalar(); toast("Baho saqlandi"); } catch (e) { toast(errText(e), true); }
+            Object.assign(x, data); for (const k in data) if (data[k]?._methodName === "deleteField" || data[k]?.__del) delete x[k]; closeModal(); renderArizalar(); toast("Baho saqlandi"); } catch (e) { toast(errText(e), true); }
     };
     $("#apOk").onclick = () => {
       const v = Math.round(+digits($("#apVal").value) / 1000) * 1000, why = $("#apWhy").value.trim(), er = $("#apErr");
       if (!(v > 0)) { er.textContent = "Bahoni kiriting"; return er.classList.remove("hidden"); }
       if (why.length < 3) { er.textContent = "Sababini yozing"; return er.classList.remove("hidden"); }
-      save({manualUzs: v, manualReason: why, manualByName: S.me.fullName || ""});
+      save({manualUzs: v, manualReason: why, manualByName: S.me.fullName || "", ...repay(x, v)});
     };
-    if ($("#apDel")) $("#apDel").onclick = () => save({manualUzs: deleteField(), manualReason: deleteField(), manualByName: deleteField()});
+    if ($("#apDel")) $("#apDel").onclick = () => save({manualUzs: deleteField(), manualReason: deleteField(), manualByName: deleteField(), ...repay(x, x.deviceUzs)});
   });
   document.querySelectorAll("[data-arzdel]").forEach(b => b.onclick = async () => {
     if (!await confirmBox("Arizani butunlay o'chirasizmi?", "O'chirish")) return;
