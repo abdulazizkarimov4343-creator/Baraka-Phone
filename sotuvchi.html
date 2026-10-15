@@ -224,6 +224,14 @@ details summary{cursor:pointer;color:var(--g);font-weight:600;margin-top:8px;fon
 .ver{text-align:center;font-size:12px;color:var(--muted);margin:12px 0 0}
 .tabs .badge{font-size:11px;padding:1px 6px;margin-left:2px}
 @media (max-width:440px){.tabs button{font-size:13px;padding:8px 3px}.tabs{gap:3px;padding:0 6px 12px}}
+.bphotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bph{position:relative;aspect-ratio:3/4;border:1.5px dashed var(--yLine);border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.bphotos.view .bph{border-style:solid;border-color:var(--line)}
+.bph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bph .plus{font-size:28px;color:var(--yDeep)}
+.bph .lab{position:absolute;left:4px;right:4px;bottom:4px;background:rgba(0,20,60,.72);color:#fff;font-size:11px;padding:2px 6px;border-radius:6px;text-align:center}
+.bph input{position:absolute;inset:0;opacity:0;cursor:pointer}
+@media (max-width:500px){.bphotos{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -272,7 +280,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-6";
+const APP_VERSION = "2026.10.15-7";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -633,7 +641,7 @@ function questionHtml() {
     <div style="display:flex;gap:8px;margin-top:14px"><input class="inp" id="colorTxt" placeholder="Ro'yxatda yo'q bo'lsa, yozing" value="${esc(cols.includes(W.color) ? "" : W.color)}"><button class="btn sec" data-act="colorOk">Davom etish</button></div>
     <button class="qback" style="margin-top:10px" data-act="colorSkip">Rangsiz davom etish</button>`; }
   else if (Q.k === "batt") h += `<div class="bigin"><input type="range" class="rng" id="battR" min="50" max="100" value="${W.batt}" style="--p:${((W.batt - 50) / 50 * 100).toFixed(1)}%"><label class="bv"><input type="number" id="battN" min="1" max="100" value="${W.batt}"><span>%</span></label></div><button class="btn pri block" style="margin-top:14px" data-act="battOk">Davom etish</button>`;
-  else if (Q.k === "cyc") h += `<div class="bigin"><label class="bv"><input type="number" id="cycN" min="0" max="5000" inputmode="numeric" value="${W.cyc ?? ""}" placeholder="0"><span>sikl</span></label></div><button class="btn pri block" style="margin-top:14px" data-act="cycOk">Davom etish</button>`;
+  else if (Q.k === "cyc") h += `<div class="bigin"><label class="bv"><input type="number" id="cycN" min="0" max="5000" inputmode="numeric" value="${W.cyc ?? ""}" placeholder="0"><span>sikl</span></label></div><button class="btn pri block" style="margin-top:14px" data-act="cycOk">Davom etish</button><button class="btn sec block" style="margin-top:10px" data-act="cycSkip">O'tkazib yuborish</button>`;
   else if (Q.k === "screen" || Q.k === "body") {
     h += `<div class="vcards">${S.settings.pts[Q.k].map(o => `<button class="vcard ${W[Q.k] === o.v ? "on" : ""}" data-ans="${Q.k}" data-v="${o.v}">
       <span class="vimg">${condSvg(Q.k, o.v)}</span>
@@ -861,7 +869,7 @@ function renderDeals() {
 /* ================= MIJOZ ARIZALARI =================
    Mijozlar mijoz.html sahifasida telefonini baholab ariza qoldiradi.
    Sotuvchi qo'ng'iroq qiladi va arizadagi javoblar bilan trade-in'ni boshlaydi. */
-const ARZ_ST = {yangi: ["Yangi", "gold"], aloqa: ["Bog'lanildi", ""], yakunlandi: ["Yakunlandi", "ok"], bekor: ["Bekor qilindi", "grey"]};
+const ARZ_ST = {yangi: ["Yangi", "gold"], aloqa: ["Bog'lanildi", ""], olindi: ["Sotib olindi", "ok"], sotuvda: ["Sotuvga chiqarildi", "ok"], yakunlandi: ["Yakunlandi", "ok"], bekor: ["Bekor qilindi", "grey"]};
 const fmtPhone = p => { const d = digits(p); return d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8, 10)} ${d.slice(10)}` : d ? "+" + d : ""; };
 function updArzBadge() { const n = S.arizalar.filter(a => a.status === "yangi").length, e = $("#arzCnt"); e.textContent = n; e.classList.toggle("hidden", !n); }
 function arzCard(x) {
@@ -872,13 +880,142 @@ function arzCard(x) {
     <div style="margin-top:6px"><a href="tel:+${esc(tel)}" style="font-weight:700;color:var(--g);font-size:17px">${esc(fmtPhone(tel))}</a></div>
     <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${x.manualUzs ? `<s>${uzs(x.deviceUzs)}</s> <b>${uzs(x.manualUzs)}</b> (admin: ${esc(x.manualReason || "")})` : uzs(x.deviceUzs)}${d.askUzs ? ` · <b>mijoz narxi: ${uzs(d.askUzs)}</b>` : ""}</div>
     <div class="src">Olmoqchi: <b>${x.ourModel ? esc(x.ourModel) + " (" + uzs(x.ourUzs) + ")" : "tanlamagan"}</b> · ${esc(pay)}</div>
-    ${x.note ? `<div class="note" style="margin:8px 0 0">Izoh: ${esc(x.note)}</div>` : ""}
+    ${x.note ? `<div class="note" style="margin:8px 0 0">Izoh: ${esc(x.note)}</div>` : ""}${buyInfoHtml(x)}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-      ${x.status === "yakunlandi" || x.status === "bekor" ? "" : `<button class="btn pri sm" data-arzgo="${x.id}">Trade-in'ni boshlash</button>`}
+      ${buyButtonsHtml(x)}
+      ${["yakunlandi", "bekor", "olindi", "sotuvda"].includes(x.status) ? "" : `<button class="btn ${isSellAriza(x) ? "sec" : "pri"} sm" data-arzgo="${x.id}">Trade-in'ni boshlash</button>`}
       ${x.status === "yangi" ? `<button class="btn sec sm" data-arz="${x.id}|aloqa">Bog'lanildi</button>` : ""}
-      ${x.status !== "bekor" && x.status !== "yakunlandi" ? `<button class="btn sec sm" style="color:var(--bad)" data-arz="${x.id}|bekor">Bekor qilish</button>` : `<button class="btn sec sm" data-arz="${x.id}|aloqa">Qayta ochish</button>`}
+      ${["olindi", "sotuvda"].includes(x.status) ? "" : x.status !== "bekor" && x.status !== "yakunlandi" ? `<button class="btn sec sm" style="color:var(--bad)" data-arz="${x.id}|bekor">Bekor qilish</button>` : `<button class="btn sec sm" data-arz="${x.id}|aloqa">Qayta ochish</button>`}
     </div></div>`;
 }
+const IS_ADMIN = false;
+/* ================= SOTISH MUROJAATI: SOTIB OLISH VA SOTUVGA CHIQARISH =================
+   Mijoz telefonini sotmoqchi bo'lsa (arizada yangi telefon yo'q): "Sotib olindi" — narx va 6 ta rasm,
+   keyin "Sotuvga chiqarildi" — sotuv narxi bilan omborga "Sotuvda" holatida qo'shiladi.
+   Rasmlar "photos" to'plamiga (arizaId bilan) yoziladi; ruxsat bo'lmasa ariza ichiga saqlanadi. */
+const BUY_SLOTS = ["Old tomoni", "Orqa tomoni", "Tepasi", "Tagi", "Chap yon tomoni", "O'ng yon tomoni"];
+let BUY = null;
+const isSellAriza = x => !x.ourModel;
+function buyInfoHtml(x) {
+  const b = x.bought, l = x.listed;
+  if (!b) return "";
+  return `<div class="note" style="margin:8px 0 0"><b>Sotib olindi:</b> ${uzs(b.priceUzs)}${b.byName ? ` · ${esc(b.byName)}` : ""}${b.at ? ` · ${fdt(b.at)}` : ""}
+    ${l ? `<br><b>Sotuvga chiqarildi:</b> ${uzs(l.sellUzs)}${l.byName ? ` · ${esc(l.byName)}` : ""}` : ""}
+    <br><button class="btn sec sm" style="margin-top:6px" data-bphotos="${x.id}">📷 Rasmlar (${b.photoCount || 6})</button></div>`;
+}
+function buyButtonsHtml(x) {
+  if (!isSellAriza(x) || x.status === "bekor") return "";
+  if (!x.bought) return `<button class="btn green sm" style="flex:none" data-buy="${x.id}">✓ Sotib olindi</button>`;
+  if (!x.listed) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
+  return "";
+}
+function shrinkPhoto(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h; cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      let q = 0.75, out = cv.toDataURL("image/jpeg", q);
+      while (out.length > 110000 && q > 0.3) { q -= 0.1; out = cv.toDataURL("image/jpeg", q); }
+      URL.revokeObjectURL(url); res(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Rasmni o'qib bo'lmadi")); };
+    img.src = url;
+  });
+}
+function renderBuyModal() {
+  const x = S.arizalar.find(a => a.id === BUY.id), d = x.device || {}, done = BUY.photos.filter(Boolean).length;
+  modal(`<h2>Telefon sotib olindi</h2><p class="src" style="margin:0 0 10px">${esc(d.name || "")} ${esc(d.mem || "")}${d.color ? ", " + esc(d.color) : ""} · ${esc(x.client?.name || "")} · taxminiy baho ${uzs(x.manualUzs || x.deviceUzs)}</p>
+  <div class="field"><label for="bPrice">Nech pulga olindi, so'm *</label><input class="inp" id="bPrice" inputmode="numeric" value="${BUY.price ? sum(BUY.price) : ""}"></div>
+  <div class="lbl" style="margin-bottom:6px">Rasmlar * (<span id="bCnt">${done}</span>/6)</div>
+  <div class="bphotos">${BUY_SLOTS.map((l, i) => `<label class="bph">${BUY.photos[i] ? `<img src="${BUY.photos[i]}" alt="">` : `<span class="plus">+</span>`}<span class="lab">${esc(l)}</span><input type="file" accept="image/*" capture="environment" data-bslot="${i}"></label>`).join("")}</div>
+  <div id="bErr" class="err hidden"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button class="btn sec" id="bNo">Bekor qilish</button><button class="btn pri" id="bOk" ${BUY.saving ? "disabled" : ""}>${BUY.saving ? "Saqlanmoqda…" : "Saqlash"}</button></div>`, true);
+}
+async function saveBuy() {
+  const x = S.arizalar.find(a => a.id === BUY.id), er = $("#bErr");
+  const fail = t => { er.textContent = t; er.classList.remove("hidden"); };
+  if (!(BUY.price > 0)) return fail("Olingan narxni kiriting");
+  const miss = BUY_SLOTS.filter((_, i) => !BUY.photos[i]);
+  if (miss.length) return fail("Rasmlar yetishmayapti: " + miss.join(", "));
+  BUY.saving = true; renderBuyModal();
+  try {
+    // Rasmlar alohida hujjatlarda; ruxsat bo'lmasa — ariza ichida
+    let embedded = null;
+    try {
+      for (let i = 0; i < 6; i++) await setDoc(doc(collection(db, "photos")), {arizaId: x.id, branchId: x.branchId || S.me.branchId || "", slot: i, label: BUY_SLOTS[i], data: BUY.photos[i], createdBy: S.me.id, createdAt: serverTimestamp()});
+    } catch (e) { if (!String(e?.code || "").includes("permission")) throw e; embedded = BUY.photos.slice(); }
+    const bought = {priceUzs: BUY.price, at: serverTimestamp(), by: S.me.id, byName: S.me.fullName || "", photoCount: 6, ...(embedded ? {photos: embedded} : {})};
+    await updateDoc(doc(db, "arizalar", x.id), {status: "olindi", bought, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
+    Object.assign(x, {status: "olindi", bought: {...bought, at: new Date()}}); BUY = null; closeModal(); renderArizalar(); toast("Sotib olindi deb saqlandi");
+  } catch (e) { BUY.saving = false; renderBuyModal(); fail(errText(e)); }
+}
+async function showBuyPhotos(id) {
+  const x = S.arizalar.find(a => a.id === id); let list = x.bought?.photos ? x.bought.photos.map((data, slot) => ({slot, data})) : null;
+  if (!list) {
+    try { const sn = await getDocs(query(collection(db, "photos"), where("arizaId", "==", id))); list = sn.docs.map(d => d.data()).sort((a, b) => a.slot - b.slot); }
+    catch (e) { return toast(errText(e), true); }
+  }
+  modal(`<h2>Telefon rasmlari</h2><p class="src" style="margin:0 0 10px">${esc(x.device?.name || "")} ${esc(x.device?.mem || "")} · ${esc(x.client?.name || "")}</p>
+  <div class="bphotos view">${list.length ? list.map(p => `<a class="bph" href="${p.data}" target="_blank" rel="noopener"><img src="${p.data}" alt=""><span class="lab">${esc(BUY_SLOTS[p.slot] || p.label || "")}</span></a>`).join("") : `<div class="empty">Rasm topilmadi.</div>`}</div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn sec" id="bNo">Yopish</button></div>`, true);
+}
+function renderListModal(x) {
+  const branches = (S.branches || []).filter(b => b.active !== false);
+  modal(`<h2>Sotuvga chiqarish</h2><p class="src" style="margin:0 0 10px">${esc(x.device?.name || "")} ${esc(x.device?.mem || "")} · olingan narx ${uzs(x.bought.priceUzs)}</p>
+  <div class="field"><label for="lSell">Sotuv narxi, so'm *</label><input class="inp" id="lSell" inputmode="numeric"></div>
+  ${IS_ADMIN && branches.length > 1 ? `<div class="field"><label for="lBranch">Filial</label><select class="inp" id="lBranch">${branches.map(b => `<option value="${b.id}" ${b.id === (x.branchId || S.me.branchId) ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>` : ""}
+  <p class="src">Telefon omborga "Sotuvda" holatida qo'shiladi va mijoz sahifasidagi vitrinada ko'rinadi.</p>
+  <div id="lErr" class="err hidden"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn sec" id="bNo">Bekor qilish</button><button class="btn pri" id="lOk" data-id="${x.id}">Sotuvga chiqarish</button></div>`);
+}
+async function saveList(id, btn) {
+  const x = S.arizalar.find(a => a.id === id), er = $("#lErr"), sell = +digits($("#lSell").value), kurs = S.settings.kurs;
+  const fail = t => { er.textContent = t; er.classList.remove("hidden"); btn.disabled = false; };
+  if (!(sell > 0)) return fail("Sotuv narxini kiriting");
+  if (sell < x.bought.priceUzs && !confirm("Sotuv narxi olingan narxdan past. Davom etasizmi?")) return;
+  btn.disabled = true;
+  const d = x.device || {}, a = d.answers || {}, branchId = $("#lBranch")?.value || (IS_ADMIN ? (x.branchId || S.me.branchId) : S.me.branchId);
+  const data = {branchId, modelName: d.name || "", brand: d.brand || "Apple", mem: d.mem || "", color: d.color || "", imei: "", cond: "bu",
+    grade: d.calc?.gradeLetter || "B", battery: a.batt ?? null, cyc: a.cyc ?? null, box: a.box || "",
+    buyUsd: Math.round(x.bought.priceUzs / kurs * 100) / 100, sellUsd: Math.round(sell / kurs * 100) / 100,
+    status: "sotuvda", source: "xarid", sourceArizaId: x.id, createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()};
+  try {
+    const ref = doc(collection(db, "stock"));
+    try { await setDoc(ref, data); }
+    catch (e) { if (String(e?.code || "").includes("permission")) return fail("Omborga qo'shishga ruxsat yo'q. Telefonni admin panel orqali sotuvga chiqaring."); throw e; }
+    const listed = {stockId: ref.id, sellUzs: sell, at: serverTimestamp(), by: S.me.id, byName: S.me.fullName || ""};
+    await updateDoc(doc(db, "arizalar", x.id), {status: "sotuvda", listed, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
+    Object.assign(x, {status: "sotuvda", listed: {...listed, at: new Date()}});
+    if (Array.isArray(S.stock)) S.stock.unshift({id: ref.id, ...data, createdAt: new Date()});
+    if (typeof syncCatalog === "function") syncCatalog();
+    closeModal(); renderArizalar(); toast("Telefon sotuvga chiqarildi");
+  } catch (e) { fail(errText(e)); }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.buy) { BUY = {id: b.dataset.buy, price: 0, photos: [], saving: false}; return renderBuyModal(); }
+  if (b.dataset.bphotos) return showBuyPhotos(b.dataset.bphotos);
+  if (b.dataset.list) return renderListModal(S.arizalar.find(a => a.id === b.dataset.list));
+  if (b.id === "bNo") { BUY = null; return closeModal(); }
+  if (b.id === "bOk") return saveBuy();
+  if (b.id === "lOk") return saveList(b.dataset.id, b);
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "bPrice" || e.target.id === "lSell") { $("#bErr")?.classList.add("hidden"); $("#lErr")?.classList.add("hidden"); const v = +digits(e.target.value); e.target.value = v ? sum(v) : ""; if (e.target.id === "bPrice" && BUY) BUY.price = v; }
+});
+document.addEventListener("change", async e => {
+  const i = e.target.dataset?.bslot; if (i === undefined || !BUY || !e.target.files?.[0]) return;
+  // Faqat shu katak yangilanadi — oyna qayta chizilmaydi (bir nechta rasm ketma-ket qo'shilsa ham yo'qolmaydi)
+  const cell = e.target.closest(".bph");
+  try {
+    const data = await shrinkPhoto(e.target.files[0]); if (!BUY) return;
+    BUY.photos[+i] = data;
+    cell.querySelector("img, .plus")?.remove(); cell.insertAdjacentHTML("afterbegin", `<img src="${data}" alt="">`);
+    const n = $("#bCnt"); if (n) n.textContent = BUY.photos.filter(Boolean).length;
+    $("#bErr")?.classList.add("hidden");
+  } catch (er) { toast(er.message, true); }
+});
 /* Mijoz arizalari — jonli kuzatish (shu filial va filial tanlanmagan arizalar) */
 let arzLive = null;
 function startArzLive() {
@@ -898,7 +1035,7 @@ function renderArizalar() {
   const items = S.arzFilter === "all" ? S.arizalar : S.arizalar.filter(a => a.status === S.arzFilter);
   $("#page").innerHTML = hero("✉", "Mijoz arizalari", `${esc(S.branch.name)} filiali · mijozlar sayt orqali yuborgan`) +
   (S.arzOk ? "" : `<div class="err">Arizalarni yuklab bo'lmadi. Admin Firebase ruxsat qoidalarini yangilashi kerak.</div>`) + `
-  <div class="chips">${[["yangi", "Yangi"], ["aloqa", "Bog'lanildi"], ["yakunlandi", "Yakunlandi"], ["bekor", "Bekor"], ["all", "Hammasi"]].map(([k, l]) => `<button class="chip ${S.arzFilter === k ? "on" : ""}" data-af="${k}">${l} · ${cnt(k)}</button>`).join("")}</div>
+  <div class="chips">${[["yangi", "Yangi"], ["aloqa", "Bog'lanildi"], ["olindi", "Sotib olindi"], ["sotuvda", "Sotuvda"], ["yakunlandi", "Yakunlandi"], ["bekor", "Bekor"], ["all", "Hammasi"]].map(([k, l]) => `<button class="chip ${S.arzFilter === k ? "on" : ""}" data-af="${k}">${l} · ${cnt(k)}</button>`).join("")}</div>
   ${items.length ? items.map(arzCard).join("") : `<div class="empty">Bu bo'limda ariza yo'q.</div>`}
   <button class="btn sec block" style="margin-top:14px" data-act="arzReload">↻ Arizalarni yangilash</button>`;
 }
@@ -949,6 +1086,7 @@ document.addEventListener("click", async e => {
   if (a === "colorOk") { const v = $("#colorTxt").value.trim(); if (!v) return toast("Rangni yozing yoki ro'yxatdan tanlang"); return answer("color", v); }
   if (a === "colorSkip") return answer("color", "");
   if (a === "battOk") { W.batt = Math.max(1, Math.min(100, Math.round(+$("#battN").value || 0))); return answer("batt", W.batt); }
+  if (a === "cycSkip") return answer("cyc", null);
   if (a === "cycOk") { const v = $("#cycN").value; if (v === "") return toast("Sikl sonini kiriting"); return answer("cyc", Math.max(0, Math.round(+v))); }
   if (a === "prev") { W.step--; renderWizard(); window.scrollTo(0, 0); return; }
   if (a === "cancelDeal") {

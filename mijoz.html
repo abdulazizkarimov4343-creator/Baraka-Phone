@@ -266,6 +266,8 @@ select.inp{appearance:auto}
 .warn{background:var(--warnSoft);border:1px solid #F1D08A;color:#8A5A00;border-radius:12px;padding:12px 14px;font-weight:600;margin:14px 0}
 .wwarn{position:relative;z-index:1;margin-top:12px;background:rgba(232,185,33,.18);border:1px solid rgba(232,185,33,.7);color:#FFE08A;border-radius:10px;padding:9px 12px;font-weight:600;font-size:14px}
 .cycu{font-size:16px!important;font-weight:600!important}
+.memo ul{margin:0;padding:0;list-style:none}.memo li{padding:2px 0 2px 26px;position:relative}.memo li::before{content:"✅";position:absolute;left:0}
+.memo p{margin:8px 0 0}
 .hbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
 @media (max-width:640px){.hbtns{grid-template-columns:1fr}}
 .phin{display:flex;align-items:stretch}
@@ -294,7 +296,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-12";
+const APP_VERSION = "2026.10.15-13";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -554,7 +556,12 @@ const RU = {
   "Do'konda tanlaysiz": "Выберете в магазине",
   "Do'konga kelishdan oldin iCloud akkauntingizdan chiqing": "Перед визитом в магазин выйдите из iCloud",
   "— \"Telefonni topish\" o'chirilgan bo'lsin. Telefoningiz, qutisi va hujjatlarini olib keling, nasiya uchun pasport kerak bo'ladi. Narx telefon ko'zdan kechirilgach aniqlanadi.": "— функция «Найти iPhone» должна быть выключена. Возьмите телефон, коробку и документы; для рассрочки нужен паспорт. Цена уточняется после осмотра телефона.",
-  "Bosh sahifaga qaytish": "Вернуться на главную",
+  "Bosh sahifaga qaytish": "Вернуться на главную", "O'tkazib yuborish": "Пропустить",
+  "iCloud login va parolingizni bilishingiz shart.": "Вы должны знать логин и пароль iCloud.",
+  "\"Telefonni topish\" (Find My iPhone) funksiyasi o'chirilgan bo'lishi kerak.": "Функция «Найти iPhone» (Find My iPhone) должна быть выключена.",
+  "Telefonning qutisi va hujjatlari bo'lsa, o'zingiz bilan olib keling.": "Если есть коробка и документы от телефона, возьмите их с собой.",
+  "Pasportingizni ham unutmang.": "Не забудьте паспорт.",
+  "Yakuniy narx telefonning holati va to'liq tekshiruvdan o'tkazilgandan so'ng aniqlanadi.": "Окончательная цена определяется после полной проверки состояния телефона.",
   "Ismingizni yozing": "Введите имя", "Telefon raqamini to'liq yozing: kod va 7 ta raqam": "Введите номер полностью: код и 7 цифр",
   "Narxlar yangilandi. Yangi bahoni ko'rib, arizani qayta yuboring": "Цены обновились. Проверьте новую оценку и отправьте заявку снова",
   "Sahifani yuklab bo'lmadi.": "Не удалось загрузить страницу.", "Qayta urinish": "Повторить",
@@ -668,8 +675,8 @@ function renderStockGrid() {
 
 /* ---- Bosh sahifa: vitrina ---- */
 function renderHome() {
-  $("#page").innerHTML = `<div class="welcome"><h1>${t("Eski iPhone'ingizni yangisiga almashtiring")}</h1><p>${t("Telefoningiz narxini darhol bilib oling — login va parol kerak emas.")}</p>
-  <div class="wwarn">⚠️ ${t("Diqqat! Ushbu telefon bahosi tekshiruv jarayonida oshishi yoki tushishi mumkin!")}</div></div>
+  $("#page").innerHTML = `<div class="welcome"><h1>${t("Eski iPhone'ingizni yangisiga almashtiring")}</h1>
+</div>
   <div class="hbtns"><button class="btn pri" data-act="start">${t("Telefonimni almashtirish →")}</button><button class="btn sec" data-act="startSell">${t("Telefonimni sotish")}</button></div>
   <h3 style="margin-top:0">${t("Sotuvdagi telefonlar")}</h3>
   <input class="inp" id="q2" placeholder="${esc(t("Qidirish: model, xotira yoki rang"))}" value="${esc(W.q2)}" style="margin-bottom:12px">
@@ -705,7 +712,7 @@ function questionHtml() {
     <div style="display:flex;gap:8px;margin-top:14px"><input class="inp" id="colorTxt" placeholder="${esc(t("Ro'yxatda yo'q bo'lsa, yozing"))}" value="${esc(cols.includes(W.color) ? "" : W.color)}"><button class="btn sec" data-act="colorOk">${t("Davom etish")}</button></div>
     <button class="qback" style="margin-top:10px" data-act="colorSkip">${t("Rangni ko'rsatmasdan davom etish")}</button>`; }
   else if (Q.k === "batt") h += `<div class="bigin"><input type="range" class="rng" id="battR" min="50" max="100" value="${W.batt}" style="--p:${((W.batt - 50) / 50 * 100).toFixed(1)}%" aria-label="${esc(t("Batareya sig'imi"))}"><label class="bv"><input type="number" id="battN" min="1" max="100" value="${W.batt}" aria-label="${esc(t("Batareya foizi"))}"><span>%</span></label></div>` + go;
-  else if (Q.k === "cyc") h += `<div class="bigin"><label class="bv"><input type="number" id="cycN" min="0" max="5000" inputmode="numeric" value="${W.cyc ?? ""}" placeholder="0" aria-label="${esc(t("Sikllar soni"))}"><span class="cycu">${t("sikl (marta zaryadlangan)")}</span></label></div>` + go;
+  else if (Q.k === "cyc") h += `<div class="bigin"><label class="bv"><input type="number" id="cycN" min="0" max="5000" inputmode="numeric" value="${W.cyc ?? ""}" placeholder="0" aria-label="${esc(t("Sikllar soni"))}"><span class="cycu">${t("sikl (marta zaryadlangan)")}</span></label></div>` + go + `<button class="btn sec block" style="margin-top:10px" data-act="cycSkip">${t("O'tkazib yuborish")}</button>`;
   else if (Q.k === "screen" || Q.k === "body") {
     h += `<div class="vcards">${S.settings.pts[Q.k].map(o => `<button class="vcard ${W[Q.k] === o.v ? "on" : ""}" data-ans="${Q.k}" data-v="${o.v}">
       <span class="vimg">${condSvg(Q.k, o.v)}</span>
@@ -763,7 +770,6 @@ function formHtml() {
   <h3>${t("Bog'lanish uchun")}</h3>
   <div class="field"><label for="fName">${t("Ismingiz *")}</label><input class="inp" id="fName" autocomplete="name" maxlength="60" value="${esc(W.name)}"></div>
   <div class="field"><label for="fPhone">${t("Telefon raqamingiz *")}</label><div class="phin"><span>+998</span><input class="inp" id="fPhone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="(90) 123-45-67" value="${esc(fmt9(W.phone))}"></div></div>
-  <div class="field"><label for="fNote">${t("Izoh (ixtiyoriy)")}</label><textarea class="inp" id="fNote" maxlength="500" placeholder="${esc(t("Masalan: qachon qo'ng'iroq qilish qulay"))}">${esc(W.note)}</textarea></div>
   <div id="saveErr" class="err hidden"></div>`;
 }
 function renderAction() {
@@ -786,7 +792,8 @@ function renderDone() {
   <p class="hint" style="font-size:17px">${t("Ariza raqami:")} <b>№${esc(d.no)}</b></p><p class="hint" style="font-size:16px">${d.sell ? `<b>${t("Siz bilan adminlarimiz bog'lanishadi.")}</b>` : esc(t("Sotuvchimiz tez orada {p} raqamiga qo'ng'iroq qiladi.", {p: d.phone}))}</p></div>
   <div class="kv"><div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(d.gave)}</div></div><div><div class="k">${t(d.sell ? "Taxminiy baho" : "Siz olasiz")}</div><div class="v" style="font-size:16px">${d.sell ? uzs(d.bigValue) : esc(d.took)}</div></div>
   ${d.sell ? "" : `<div class="big"><div class="k">${esc(d.bigLabel)}</div><div class="v">${uzs(d.bigValue)}</div></div>`}</div>
-  <div class="note"><b>${t("Do'konga kelishdan oldin iCloud akkauntingizdan chiqing")}</b> ${t("— \"Telefonni topish\" o'chirilgan bo'lsin. Telefoningiz, qutisi va hujjatlarini olib keling, nasiya uchun pasport kerak bo'ladi. Narx telefon ko'zdan kechirilgach aniqlanadi.")}</div>
+  <div class="note memo"><ul>${["iCloud login va parolingizni bilishingiz shart.", "\"Telefonni topish\" (Find My iPhone) funksiyasi o'chirilgan bo'lishi kerak.", "Telefonning qutisi va hujjatlari bo'lsa, o'zingiz bilan olib keling.", "Pasportingizni ham unutmang."].map(x => `<li>${esc(t(x))}</li>`).join("")}</ul>
+  <p>💰 <b>${esc(t("Yakuniy narx telefonning holati va to'liq tekshiruvdan o'tkazilgandan so'ng aniqlanadi."))}</b></p></div>
   <button class="btn sec block" style="margin-top:20px" data-act="new">${t("Bosh sahifaga qaytish")}</button>`;
   $("#actionBar").classList.add("hidden");
 }
@@ -794,7 +801,10 @@ function renderDone() {
 async function saveAriza() {
   const err = $("#saveErr"); err.classList.add("hidden");
   const fail = x => { err.textContent = x; err.classList.remove("hidden"); };
-  W.name = W.name.trim(); W.note = W.note.trim();
+  // Telefon avtomatik to'ldirgan qiymat "input" hodisasisiz ham bo'lishi mumkin — maydonning o'zidan o'qiymiz
+  if ($("#fName")) W.name = $("#fName").value;
+  if ($("#fPhone")) { let d = digits($("#fPhone").value); if (d.length > 9 && d.startsWith("998")) d = d.slice(3); W.phone = d.slice(0, 9); }
+  W.name = W.name.trim(); W.note = "";
   if (W.name.length < 2) return fail(t("Ismingizni yozing"));
   if (!phoneOk()) { $("#fPhone")?.classList.add("err"); return fail(t("Telefon raqamini to'liq yozing: kod va 7 ta raqam")); }
   const c = clientCalc(), m = curModel(), st = ourStock();
@@ -841,6 +851,7 @@ document.addEventListener("click", e => {
   if (a === "colorOk") { const v = $("#colorTxt").value.trim(); if (!v) return toast(t("Rangni yozing yoki ro'yxatdan tanlang")); return answer("color", v); }
   if (a === "colorSkip") return answer("color", "");
   if (a === "battOk") { W.batt = Math.max(1, Math.min(100, Math.round(+$("#battN").value || 0))); return answer("batt", W.batt); }
+  if (a === "cycSkip") return answer("cyc", null);
   if (a === "cycOk") { const v = $("#cycN").value; if (v === "") return toast(t("Sikl sonini kiriting")); return answer("cyc", Math.max(0, Math.round(+v))); }
   if (a === "prev") { W.step = prevStep(W.step); renderWizard(); return goTop(); }
   if (a === "next" && canNext()) { if (W.step === 3) return saveAriza(); W.step = nextStep(W.step); renderWizard(); return goTop(); }
@@ -858,6 +869,7 @@ document.addEventListener("input", e => {
   if (id === "battR") { const v = +el.value; W.batt = v; $("#battN").value = v; el.style.setProperty("--p", ((v - 50) / 50 * 100).toFixed(1) + "%"); return; }
   if (id === "battN") { if (el.value === "") return; const v = Math.max(1, Math.min(100, Math.round(+el.value))); W.batt = v; const r = $("#battR"); r.value = Math.max(50, v); r.style.setProperty("--p", ((Math.max(50, v) - 50) / 50 * 100).toFixed(1) + "%"); return; }
   if (id === "mRange") { W.months = +el.value; el.style.setProperty("--p", rngPct(W.months)); $("#mRangeVal").textContent = t("{n} oy", {n: W.months}); $("#planBox").innerHTML = planHtml(diffUzs()); return; }
+  if (id === "fName" || id === "fPhone") $("#saveErr")?.classList.add("hidden");
   if (id === "fName") W.name = el.value;
   if (id === "fPhone") {
     // +998 doim turadi: to'liq raqam qo'yilsa ham boshidagi 998 olib tashlanadi
