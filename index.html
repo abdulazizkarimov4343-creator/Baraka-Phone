@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-5";
+const APP_VERSION = "2026.10.15-6";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -585,7 +585,7 @@ function renderStock() {
     const sold = s.status === "sotilgan";
     const pr = sold && s.sold?.priceUzs ? s.sold.priceUzs - toUzs(s.buyUsd) : toUzs(s.sellUsd) - toUzs(s.buyUsd);
     return `<tr>
-    <td><b>${esc(s.modelName)}</b> <span class="badge ${s.cond === "yangi" ? "ok" : "grey"}">${s.cond === "yangi" ? "Yangi" : "B/U"}</span> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.cyc != null ? ", " + s.cyc + " sikl" : ""}${s.box ? (s.box === "yes" ? ", qutisi bor" : ", qutisiz") : ""}${s.imei ? "<br>IMEI " + esc(s.imei) : ""}</div>
+    <td><b>${esc(s.modelName)}</b> <span class="badge ${s.cond === "yangi" ? "ok" : "grey"}">${s.cond === "yangi" ? "Yangi" : "B/U"}</span> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.cyc != null ? ", " + s.cyc + " sikl" : ""}${s.box ? (s.box === "yes" ? ", qutisi bor" : ", qutisiz") : ""}${s.imei && s.cond === "yangi" ? "<br>IMEI " + esc(s.imei) : ""}</div>
       <div class="src">${s.source === "trade-in" ? "Trade-in orqali" : "Xarid"} · ${fdate(s.createdAt)}</div>
       ${(s.transfers || []).length ? `<div class="src">Ko'chirilgan: ${s.transfers.map(t => `${esc(bName(t.from))} → ${esc(bName(t.to))} (${fdate(t.at)})`).join("; ")}</div>` : ""}
       ${sold && s.sold ? `<div class="src"><b>Sotildi:</b> ${fdate(s.sold.at)}, ${esc(s.sold.clientName || "")} (${s.sold.kind === "deal" ? "trade-in" : "sotuv"})</div>` : ""}</td>
@@ -693,13 +693,15 @@ function stockModal() {
     <div class="field"><label>Batareya, %</label><input class="inp" id="nBatt" type="number" min="1" max="100" value="100"></div></div>
   <div class="row"><div class="field"><label>Batareya sikli</label><input class="inp" id="nCyc" type="number" min="0" placeholder="bilmasangiz bo'sh qoldiring"></div>
     <div class="field"><label>Qutisi</label><select class="inp" id="nBox"><option value="yes">Bor</option><option value="no">Yo'q</option></select></div></div>
-  <div class="field"><label>IMEI</label><input class="inp" id="nImei" inputmode="numeric" maxlength="15"></div>
+  <div class="field hidden" id="nImeiBox"><label>IMEI</label><input class="inp" id="nImei" inputmode="numeric" maxlength="15"></div>
   <div class="row"><div class="field"><label>Tannarx, $</label><input class="inp" id="nBuy" type="number" min="0"></div>
     <div class="field"><label>Sotish narxi, $</label><input class="inp" id="nSell" type="number" min="0"></div></div>
   <div id="nErr" class="err hidden"></div>
   <div class="acts"><button class="btn sec" id="nCancel">Bekor qilish</button><button class="btn pri" id="nSave">Qo'shish</button></div>`);
   const fill = () => { const m = S.models.find(x => x.id === $("#nModel").value); $("#nMem").innerHTML = (m?.mems || []).map(x => `<option>${esc(x)}</option>`).join(""); $("#nColorBox").innerHTML = colorPicker("nColor", m); bindPicker("nColor"); };
   $("#nModel").onchange = fill; fill();
+  // IMEI faqat yangi telefonlar uchun
+  $("#nCond").onchange = () => $("#nImeiBox").classList.toggle("hidden", $("#nCond").value !== "yangi");
   $("#nCancel").onclick = closeModal;
   $("#nSave").onclick = async () => {
     const m = S.models.find(x => x.id === $("#nModel").value), buy = +$("#nBuy").value, sell = +$("#nSell").value;
@@ -708,7 +710,7 @@ function stockModal() {
     if (!(buy > 0) || !(sell > 0)) { e.textContent = "Tannarx va sotish narxini kiriting"; e.classList.remove("hidden"); return; }
     const warn = [buy > PRICE_LIMIT || sell > PRICE_LIMIT ? `narx ${usd(PRICE_LIMIT)} dan yuqori` : "", sell < buy ? "sotish narxi tannarxdan past" : "", sell > buy * 3 ? "sotish narxi tannarxdan 3 barobardan ko'p" : ""].filter(Boolean);
     if (warn.length && !$("#nSave").dataset.ok) { e.innerHTML = `Diqqat: ${warn.join(", ")}. Tannarx ${usd(buy)} (${uzs(toUzs(buy))}), sotish ${usd(sell)} (${uzs(toUzs(sell))}). To'g'ri bo'lsa, yana bir marta <b>Qo'shish</b> ni bosing.`; e.classList.remove("hidden"); $("#nSave").dataset.ok = "1"; return; }
-    const data = {branchId: $("#nBranch").value, modelName: m.name, brand: m.brand, mem: $("#nMem").value, color: pickedColor("nColor"), cond: $("#nCond").value, imei: digits($("#nImei").value),
+    const data = {branchId: $("#nBranch").value, modelName: m.name, brand: m.brand, mem: $("#nMem").value, color: pickedColor("nColor"), cond: $("#nCond").value, imei: $("#nCond").value === "yangi" ? digits($("#nImei").value) : "",
       grade: $("#nGrade").value, battery: +$("#nBatt").value || null, cyc: $("#nCyc").value === "" ? null : Math.max(0, Math.round(+$("#nCyc").value)), box: $("#nBox").value,
       buyUsd: buy, sellUsd: sell, status: "sotuvda", source: "xarid",
       createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()};
@@ -859,9 +861,9 @@ function arzAnswers(x) {
 }
 function arzCard(x) {
   const [stL, stC] = ARZ_ST[x.status] || [x.status || "—", "grey"], d = x.device || {}, tel = digits(x.client?.phone);
-  const pay = !x.ourModel ? "Faqat telefonini topshiradi" : x.diffUzs <= 0 ? `Mijozga qaytariladi: ${uzs(-x.diffUzs)}` : x.payType === "nasiya" ? `Nasiya: ${uzs(x.monthlyUzs)} × ${x.months} oy` : `Naqd qo'shib to'laydi: ${uzs(x.diffUzs)}`;
+  const pay = !x.ourModel ? "Telefonini sotmoqchi" : x.diffUzs <= 0 ? `Mijozga qaytariladi: ${uzs(-x.diffUzs)}` : x.payType === "nasiya" ? `Nasiya: ${uzs(x.monthlyUzs)} × ${x.months} oy` : `Naqd qo'shib to'laydi: ${uzs(x.diffUzs)}`;
   return `<div class="card ${x.status === "yangi" ? "new" : ""}">
-  <div class="card-h"><div><span class="badge ${stC}">${esc(stL)}</span> <b>${esc(x.client?.name)}</b> <a class="src" href="tel:+${esc(tel)}">${esc(fmtPhone(tel))}</a></div>
+  <div class="card-h"><div><span class="badge ${stC}">${esc(stL)}</span>${!x.ourModel ? ' <span class="badge bad">Sotish</span>' : ""} <b>${esc(x.client?.name)}</b> <a class="src" href="tel:+${esc(tel)}">${esc(fmtPhone(tel))}</a></div>
     <span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)} · ${esc(bName(x.branchId))}</span></div>
   <div class="grid4">
     <div><div class="k">Topshiradi</div><div class="v">${esc(d.name)} ${esc(d.mem)}</div><div class="src">${esc(d.color || "")}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""}</div></div>

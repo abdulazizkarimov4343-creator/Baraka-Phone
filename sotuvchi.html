@@ -272,7 +272,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-3";
+const APP_VERSION = "2026.10.15-4";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -637,7 +637,6 @@ function summaryHtml() {
   const c = clientCalc(), m = curModel();
   let h = `${W.hist.length ? `<button class="qback" data-act="qback">← Orqaga</button>` : ""}` + hero("✆", "Telefon baholash", "Mijozning telefoni") + `
   <div class="field"><span class="lbl">Mahsulot</span><div class="ro">B/U ${esc(m.brand)} ${esc(m.name)} ${esc(W.mem)}${W.color ? " " + esc(colorUz(W.color)) : ""}</div></div>
-  <div class="field"><label for="imei">IMEI</label><input class="inp" id="imei" inputmode="numeric" maxlength="15" value="${esc(W.imei)}" placeholder="*#06# terib bilib olinadi"></div>
   <button class="qback" data-act="redo">Javoblarni qaytadan ko'rib chiqish</button>`;
   if (c.rejected) return h + `<div class="err">Telefon iCloud / Google akkauntga bog'langan — qabul qilinmaydi. Mijozdan akkauntdan chiqishni so'rang.</div>`;
   if (c.parts) h += `<div class="note">Telefon yoqilmaydi — faqat ehtiyot qism sifatida baholandi.</div>`;
@@ -774,12 +773,12 @@ function renderStock() {
   $("#page").innerHTML = hero("▣", "Ombor", S.stockScope === "mine" ? `${esc(S.branch.name)} filiali` : "Barcha filiallar") + `
   <div class="chips">${[["mine", "Mening filialim"], ["all", "Barcha filiallar"]].map(([k, l]) => `<button class="chip ${S.stockScope === k ? "on" : ""}" data-scope="${k}">${l}</button>`).join("")}</div>
   <div class="chips">${[["sotuvda", "Sotuvda"], ["tayyorlanmoqda", "Tayyorlanmoqda"], ["sotilgan", "Sotilgan"]].map(([k, l]) => `<button class="chip ${S.stockFilter === k ? "on" : ""}" data-sf="${k}">${l} · ${cnt(k)}</button>`).join("")}</div>
-  <input class="inp" id="stockQ" placeholder="Qidirish: model, rang yoki IMEI" value="${esc(S.stockQ)}" style="margin-bottom:12px">
+  <input class="inp" id="stockQ" placeholder="Qidirish: model yoki rang" value="${esc(S.stockQ)}" style="margin-bottom:12px">
   <div id="stockList">${stockListHtml(stockItems())}</div>`;
 }
 function stockListHtml(items) {
   return items.length ? items.map(s => `<div class="item"><div><b>${esc(s.modelName)}</b> <span class="badge ${s.cond === "yangi" ? "ok" : "grey"}">${s.cond === "yangi" ? "Yangi" : "B/U"}</span> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span>
-    <div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", batareya " + s.battery + "%" : ""}${s.imei ? ", IMEI " + esc(s.imei) : ""}</div>
+    <div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", batareya " + s.battery + "%" : ""}</div>
     <div class="src">${s.other ? "Boshqa filial" : `Tannarx: ${uzs(toUzs(s.buyUsd))}`}${s.status === "sotilgan" && s.sold ? ` · Sotildi ${fdt(s.sold.at)}, ${esc(s.sold.clientName || "")}` : ""}</div>
     ${s.branchId !== S.me.branchId ? `<div><span class="badge gold">${esc(bName(s.branchId))}</span></div>` : ""}</div>
     <div style="text-align:right"><div class="p">${uzs(s.status === "sotilgan" && s.sold?.priceUzs ? s.sold.priceUzs : toUzs(s.sellUsd))}</div>
@@ -848,9 +847,9 @@ const fmtPhone = p => { const d = digits(p); return d.length === 12 ? `+${d.slic
 function updArzBadge() { const n = S.arizalar.filter(a => a.status === "yangi").length, e = $("#arzCnt"); e.textContent = n; e.classList.toggle("hidden", !n); }
 function arzCard(x) {
   const [stL, stC] = ARZ_ST[x.status] || [x.status || "—", "grey"], d = x.device || {}, tel = digits(x.client?.phone);
-  const pay = !x.ourModel ? "Faqat telefonini topshiradi" : x.diffUzs <= 0 ? `Mijozga qaytariladi: ${uzs(-x.diffUzs)}` : x.payType === "nasiya" ? `Nasiya: ${uzs(x.monthlyUzs)} × ${x.months} oy` : `Naqd qo'shib to'laydi: ${uzs(x.diffUzs)}`;
+  const pay = !x.ourModel ? "Telefonini sotmoqchi" : x.diffUzs <= 0 ? `Mijozga qaytariladi: ${uzs(-x.diffUzs)}` : x.payType === "nasiya" ? `Nasiya: ${uzs(x.monthlyUzs)} × ${x.months} oy` : `Naqd qo'shib to'laydi: ${uzs(x.diffUzs)}`;
   return `<div class="item" style="display:block${x.status === "yangi" ? ";border-left:5px solid var(--y)" : ""}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
-    <div><span class="badge ${stC}">${esc(stL)}</span> <b>${esc(x.client?.name)}</b></div><span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)}</span></div>
+    <div><span class="badge ${stC}">${esc(stL)}</span>${!x.ourModel ? ' <span class="badge bad">Sotish</span>' : ""} <b>${esc(x.client?.name)}</b></div><span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)}</span></div>
     <div style="margin-top:6px"><a href="tel:+${esc(tel)}" style="font-weight:700;color:var(--g);font-size:17px">${esc(fmtPhone(tel))}</a></div>
     <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${uzs(x.deviceUzs)}</div>
     <div class="src">Olmoqchi: <b>${x.ourModel ? esc(x.ourModel) + " (" + uzs(x.ourUzs) + ")" : "tanlamagan"}</b> · ${esc(pay)}</div>
