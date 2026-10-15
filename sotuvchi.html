@@ -272,7 +272,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-5";
+const APP_VERSION = "2026.10.15-6";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -561,7 +561,21 @@ const curModel = () => S.models.find(m => m.id === W.modelId);
 const GENERIC_COLORS = ["Qora", "Oq", "Kumush", "Kulrang", "Oltin", "Ko'k", "Yashil", "Binafsha", "Pushti", "Qizil"];
 const colorsOf = m => (m?.colors || []).length ? m.colors : GENERIC_COLORS;
 const answers = () => ({power: W.power, lock: W.lock, screen: W.screen, body: W.body, batt: W.batt, cyc: hasCycles(curModel()) ? W.cyc : null, bio: W.bio, cam: W.cam, repair: W.repair, box: W.box});
-const clientCalc = () => { const m = curModel(); return m && W.mem ? calcTradein(m, W.mem, answers(), S.settings) : null; };
+const autoCalc = () => { const m = curModel(); return m && W.mem ? calcTradein(m, W.mem, answers(), S.settings) : null; };
+// Tekshiruvda xato topilsa sotuvchi narxni qo'lda o'zgartiradi (W.manual) — shartnoma shu narx bilan tuziladi
+const clientCalc = () => {
+  const c = autoCalc(); if (!c || c.rejected || !W.manual) return c;
+  const u = Math.round(W.manual.uzs / S.settings.kurs * 100) / 100;
+  return {...c, usd: u, uzs: W.manual.uzs, sellUsd: Math.round(u * 100 / (100 - S.settings.discPct)), manual: true, autoUzs: c.uzs};
+};
+function manualModal() {
+  const c = autoCalc(), cur = W.manual?.uzs || c.uzs;
+  modal(`<h2>Narxni qo'lda o'zgartirish</h2><p class="hint" style="margin-top:0">Hisoblangan narx: <b>${uzs(c.uzs)}</b>. Telefonni tekshirishda xato yoki yashirin nuqson topilgan bo'lsa, yangi narxni kiriting.</p>
+  <div class="field"><label for="mpVal">Yangi narx, so'm</label><input class="inp" id="mpVal" inputmode="numeric" value="${sum(cur)}"></div>
+  <div class="field"><label for="mpWhy">Sababi *</label><textarea class="inp" id="mpWhy" style="min-height:70px" placeholder="Masalan: ekran almashtirilgan ekan, Face ID ishlamaydi">${esc(W.manual?.reason || "")}</textarea></div>
+  <div id="mpErr" class="err hidden"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn sec" data-act="mpNo">Bekor qilish</button><button class="btn pri" data-act="mpOk">Saqlash</button></div>`);
+}
 const ourStock = () => S.stock.find(s => s.id === W.stockId && s.status === "sotuvda");
 const diffUzs = () => { const s = ourStock(), c = clientCalc(); return s && c ? toUzs(s.sellUsd) - c.uzs : 0; };
 
@@ -643,7 +657,10 @@ function summaryHtml() {
   else h += `<div class="extra"><div><span class="t">Qutisi</span><span class="pill">${W.box === "no" ? "Yo'q" : "Bor"}</span></div><div><span class="t">Shikast</span><span class="pill">${esc(gradeName(c.gi))}</span></div><div><span class="t">Batareya</span><span class="pill">${W.batt}%${hasCycles(m) && W.cyc != null ? " · " + W.cyc + " sikl" : ""}</span></div></div>
     <div class="ptsbox"><div style="display:flex;justify-content:space-between"><b>Shikast ballari</b><b>${c.points} ball</b></div><ul>${c.lines.length ? c.lines.map(l => `<li><span>${esc(l[0])}</span><span>+${l[1]}</span></li>`).join("") : "<li><span>Nuqson topilmadi</span><span>0</span></li>"}</ul>
     <div class="scale">${S.settings.grades.map((g, i) => `<div class="${i === c.gi ? "on" : ""}">${esc(gradeName(i))}</div>`).join("")}</div></div>`;
-  return h + `<div class="price"><div class="price-top"><div class="ic">$</div><div><small>Hisoblangan narx</small><b>Trade-in qiymati</b></div><span class="usd">${usd(c.usd)}</span></div><div class="total"><span>Jami:</span><b>${sum(c.uzs)}</b></div></div>`;
+  return h + `<div class="price"><div class="price-top"><div class="ic">$</div><div><small>${c.manual ? "Qo'lda o'zgartirilgan narx" : "Hisoblangan narx"}</small><b>Trade-in qiymati</b></div><span class="usd">${usd(c.usd)}</span></div><div class="total"><span>Jami:</span><b>${sum(c.uzs)}</b></div></div>
+  ${c.manual ? `<div class="note">Narx qo'lda o'zgartirildi. Hisoblangan: <b>${uzs(c.autoUzs)}</b> → yangi: <b>${uzs(c.uzs)}</b>.<br>Sabab: ${esc(W.manual.reason)}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" data-act="manualPrice">✎ Narxni o'zgartirish</button><button class="btn sec sm" data-act="manualReset">Hisoblangan narxga qaytarish</button></div>`
+    : `<button class="btn sec sm" style="margin-top:12px" data-act="manualPrice">✎ Narxni qo'lda o'zgartirish</button>`}`;
 }
 function renderStockGrid() {
   const q = W.q2.trim().toLowerCase(), match = s => s.status === "sotuvda" && (!q || `${s.modelName} ${s.mem} ${s.color}`.toLowerCase().includes(q));
@@ -682,6 +699,7 @@ function answer(k, v) {
   if (k === "model") { if (W.modelId !== v) { W.mem = null; W.color = ""; } W.modelId = v; } else W[k] = v;
   let next = W.q + 1; while (QS[next] && QS[next].cond && !QS[next].cond()) next++;
   if ((k === "power" && v === "no") || (k === "lock" && v === "on")) next = SUMMARY;
+  W.manual = null;   // javob o'zgarsa, qo'lda kiritilgan narx bekor bo'ladi
   W.hist.push(W.q); W.q = next; renderWizard(); window.scrollTo(0, 0);
 }
 function renderDone() {
@@ -721,7 +739,8 @@ async function saveDeal() {
     b.set(dealRef, {
       branchId: S.me.branchId, sellerId: S.me.id, sellerName: S.me.fullName || "", client, contractNo,
       device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, imei: digits(W.imei), answers: answers(),
-               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter}},
+               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter},
+               ...(c.manual ? {manual: {uzs: c.uzs, autoUzs: c.autoUzs, reason: W.manual.reason, by: S.me.id, byName: S.me.fullName || ""}} : {})},
       deviceUsd: c.usd, deviceUzs: c.uzs, stockId: st.id, ourModel: `${st.modelName} ${st.mem || ""}`.trim(), ourUsd: st.sellUsd, ourUzs: our,
       diffUzs: diff, months, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0, kurs, newStockId: newRef.id, photoCount,
       schedule: p ? schedule(p, months) : [], createdAt: serverTimestamp()});
@@ -851,7 +870,7 @@ function arzCard(x) {
   return `<div class="item" style="display:block${x.status === "yangi" ? ";border-left:5px solid var(--y)" : ""}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div><span class="badge ${stC}">${esc(stL)}</span>${!x.ourModel ? ' <span class="badge bad">Sotish</span>' : ""} <b>${esc(x.client?.name)}</b></div><span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)}</span></div>
     <div style="margin-top:6px"><a href="tel:+${esc(tel)}" style="font-weight:700;color:var(--g);font-size:17px">${esc(fmtPhone(tel))}</a></div>
-    <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${uzs(x.deviceUzs)}${d.askUzs ? ` · <b>mijoz narxi: ${uzs(d.askUzs)}</b>` : ""}</div>
+    <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${x.manualUzs ? `<s>${uzs(x.deviceUzs)}</s> <b>${uzs(x.manualUzs)}</b> (admin: ${esc(x.manualReason || "")})` : uzs(x.deviceUzs)}${d.askUzs ? ` · <b>mijoz narxi: ${uzs(d.askUzs)}</b>` : ""}</div>
     <div class="src">Olmoqchi: <b>${x.ourModel ? esc(x.ourModel) + " (" + uzs(x.ourUzs) + ")" : "tanlamagan"}</b> · ${esc(pay)}</div>
     ${x.note ? `<div class="note" style="margin:8px 0 0">Izoh: ${esc(x.note)}</div>` : ""}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
@@ -896,7 +915,8 @@ function startFromAriza(x) {
   W = freshW();
   Object.assign(W, {brand: m.brand, modelId: m.id, mem: m.mems.includes(d.mem) ? d.mem : null, color: d.color || "",
     power: a.power ?? null, lock: a.lock ?? null, screen: a.screen ?? null, body: a.body ?? null, batt: a.batt ?? 100, cyc: a.cyc ?? null,
-    bio: a.bio ?? null, cam: a.cam ?? null, repair: a.repair ?? null, box: a.box ?? null, arizaId: x.id, arizaNo: x.no || x.id.slice(0, 6).toUpperCase()});
+    bio: a.bio ?? null, cam: a.cam ?? null, repair: a.repair ?? null, box: a.box ?? null, arizaId: x.id, arizaNo: x.no || x.id.slice(0, 6).toUpperCase(),
+    manual: x.manualUzs ? {uzs: x.manualUzs, reason: x.manualReason || "Admin arizada o'zgartirgan"} : null});
   // Mijoz barcha savollarga javob bergan; xotira hajmi ro'yxatdan o'chirilgan bo'lsa — o'sha savoldan davom etadi
   W.q = W.mem ? SUMMARY : QS.findIndex(q => q.k === "mem");
   if (S.stock.some(s => s.id === x.stockId && s.status === "sotuvda")) W.stockId = x.stockId;
@@ -937,6 +957,15 @@ document.addEventListener("click", async e => {
     return;
   }
   if (a === "cancelNo") return closeModal();
+  if (a === "manualPrice") return manualModal();
+  if (a === "manualReset") { W.manual = null; return renderWizard(); }
+  if (a === "mpNo") return closeModal();
+  if (a === "mpOk") {
+    const v = +digits($("#mpVal").value), why = $("#mpWhy").value.trim(), er = $("#mpErr");
+    if (!(v > 0)) { er.textContent = "Narxni kiriting"; return er.classList.remove("hidden"); }
+    if (why.length < 3) { er.textContent = "Sababini yozing"; return er.classList.remove("hidden"); }
+    W.manual = {uzs: Math.round(v / 1000) * 1000, reason: why}; closeModal(); renderWizard(); toast("Narx o'zgartirildi"); return;
+  }
   if (a === "cancelYes") { closeModal(); W = freshW(); renderWizard(); window.scrollTo(0, 0); toast("Bekor qilindi"); return; }
   if (a === "next" && canNext()) { if (W.step === 3) return saveDeal(); W.step++; renderWizard(); window.scrollTo(0, 0); return; }
   if (a === "new") { W = freshW(); return renderWizard(); }
@@ -979,6 +1008,7 @@ document.addEventListener("input", e => {
   if (id === "stockQ") { S.stockQ = t.value; $("#stockList").innerHTML = stockListHtml(stockItems()); return; }
   if (id === "slPrice") { SALE.price = +t.value || 0; const sp = $("#slPlan"); if (sp) sp.innerHTML = salePlanHtml(); return; }
   if (id === "slRange") { SALE.months = +t.value; t.style.setProperty("--p", rngPct(SALE.months)); $("#slRangeVal").textContent = SALE.months + " oy"; $("#slPlan").innerHTML = salePlanHtml(); return; }
+  if (id === "mpVal") { const v = +digits(t.value); t.value = v ? sum(v) : ""; return; }
   if (id === "slName") SALE.name = t.value;
   if (id === "slPhone") SALE.phone = t.value;
 });

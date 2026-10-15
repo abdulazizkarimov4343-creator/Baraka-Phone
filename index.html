@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-7";
+const APP_VERSION = "2026.10.15-8";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -724,6 +724,8 @@ function dealCheck(d) {
   const m = S.models.find(x => x.id === d.device?.modelId);
   if (!m || !d.device?.answers || !S.settings) return null;
   const c = calcTradein(m, d.device.mem, d.device.answers, S.settings);
+  // Sotuvchi narxni qo'lda o'zgartirgan bo'lsa — farq xato emas, sababi bilan ko'rsatiladi
+  if (d.device?.manual) return {expected: c.usd, bad: false, manual: true};
   return {expected: c.usd, bad: Math.abs(c.usd - d.deviceUsd) > 0.6};
 }
 function schedHtml(sch) {
@@ -785,6 +787,7 @@ function dealCard(d) {
   <div class="card-h"><div><span class="badge gold">Trade-in</span> <b>${esc(d.client?.name)}</b> <span class="src">${esc(showPhone(d.client?.phone))}${d.client?.passport ? ", " + esc(d.client.passport) : ""}</span></div>
     <div class="src">${fdt(d.createdAt)} · ${esc(bName(d.branchId))} · ${esc(d.sellerName || pName(d.sellerId))}</div></div>
   ${chk?.bad ? `<div class="err" style="margin:10px 0 0">Narx farqi: sotuvchi javoblari bo'yicha mijoz telefoni ${usd(chk.expected)} bo'lishi kerak edi, shartnomada ${usd(d.deviceUsd)} yozilgan. Sozlamalar shartnomadan keyin o'zgargan bo'lishi ham mumkin.</div>` : ""}
+  ${d.device?.manual ? `<div class="note" style="margin:10px 0 0">✎ Narx qo'lda o'zgartirilgan: hisoblangan <b>${uzs(d.device.manual.autoUzs)}</b> → <b>${uzs(d.device.manual.uzs)}</b>. Sabab: ${esc(d.device.manual.reason || "")}${d.device.manual.byName ? ` (${esc(d.device.manual.byName)})` : ""}</div>` : ""}
   <div class="grid4">
     <div><div class="k">Mijoz topshirdi</div><div class="v">${esc(d.device?.name || "")} ${esc(d.device?.mem || "")}</div><div class="k">${esc(c.grade || "")}${c.points != null ? ", " + c.points + " ball" : ""} · ${uzs(d.deviceUzs)}</div></div>
     <div><div class="k">Mijoz oldi</div><div class="v">${esc(d.ourModel || "")}</div><div class="k">${uzs(d.ourUzs)}</div></div>
@@ -867,7 +870,7 @@ function arzCard(x) {
     <span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)} · ${esc(bName(x.branchId))}</span></div>
   <div class="grid4">
     <div><div class="k">Topshiradi</div><div class="v">${esc(d.name)} ${esc(d.mem)}</div><div class="src">${esc(d.color || "")}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""}</div></div>
-    <div><div class="k">Taxminiy baho</div><div class="v">${uzs(x.deviceUzs)}</div>${d.askUzs ? `<div class="src"><b>Mijoz narxi: ${uzs(d.askUzs)}</b></div>` : ""}</div>
+    <div><div class="k">Taxminiy baho</div><div class="v">${x.manualUzs ? `<s style="opacity:.55">${uzs(x.deviceUzs)}</s> ${uzs(x.manualUzs)}` : uzs(x.deviceUzs)}</div>${x.manualUzs ? `<div class="src">✎ ${esc(x.manualReason || "")}</div>` : ""}${d.askUzs ? `<div class="src"><b>Mijoz narxi: ${uzs(d.askUzs)}</b></div>` : ""}</div>
     <div><div class="k">Olmoqchi</div><div class="v">${x.ourModel ? esc(x.ourModel) : "—"}</div>${x.ourModel ? `<div class="src">${uzs(x.ourUzs)}</div>` : ""}</div>
     <div><div class="k">To'lov</div><div class="v" style="white-space:normal">${esc(pay)}</div></div>
   </div>
@@ -877,6 +880,7 @@ function arzCard(x) {
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
     ${Object.entries(ARZ_ST).filter(([k]) => k !== x.status && k !== "yangi").map(([k, [l]]) => `<button class="btn ${k === "yakunlandi" ? "pri" : "sec"} sm" data-arz="${x.id}|${k}">${esc(l)}</button>`).join("")}
     ${x.status !== "yangi" ? `<button class="btn sec sm" data-arz="${x.id}|yangi">Yangi deb belgilash</button>` : ""}
+    <button class="btn sec sm" data-arzprice="${x.id}">✎ Bahoni o'zgartirish</button>
     <button class="btn bad sm" data-arzdel="${x.id}" style="margin-left:auto">O'chirish</button>
   </div></div>`;
 }
@@ -948,6 +952,28 @@ function renderArizalar() {
       await updateDoc(doc(db, "arizalar", id), {status: st, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
       Object.assign(x, {status: st, updatedAt: new Date(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""}); updArzBadge(); renderArizalar(); toast("Ariza holati: " + ARZ_ST[st][0]);
     } catch (e) { b.disabled = false; toast(errText(e), true); }
+  });
+  // Tekshiruvda xato topilsa — telefon bahosini qo'lda o'zgartirish (sotuvchi trade-in'ni shu narx bilan boshlaydi)
+  document.querySelectorAll("[data-arzprice]").forEach(b => b.onclick = () => {
+    const x = S.arizalar.find(a => a.id === b.dataset.arzprice);
+    modal(`<h2>Bahoni o'zgartirish</h2><p class="sub">${esc(x.device?.name || "")} ${esc(x.device?.mem || "")}. Hisoblangan baho: <b>${uzs(x.deviceUzs)}</b></p>
+      <div class="field"><label>Yangi baho, so'm</label><input class="inp" id="apVal" inputmode="numeric" value="${sum(x.manualUzs || x.deviceUzs)}"></div>
+      <div class="field"><label>Sababi *</label><textarea class="inp" id="apWhy" rows="3" placeholder="Masalan: ekran almashtirilgan ekan">${esc(x.manualReason || "")}</textarea></div>
+      <div id="apErr" class="err hidden"></div>
+      <div class="acts">${x.manualUzs ? `<button class="btn bad" id="apDel" style="margin-right:auto">Hisoblangan bahoga qaytarish</button>` : ""}<button class="btn sec" id="apNo">Bekor qilish</button><button class="btn pri" id="apOk">Saqlash</button></div>`);
+    $("#apVal").oninput = e => { const v = +digits(e.target.value); e.target.value = v ? sum(v) : ""; };
+    $("#apNo").onclick = closeModal;
+    const save = async data => {
+      try { await updateDoc(doc(db, "arizalar", x.id), {...data, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
+            Object.assign(x, data); closeModal(); renderArizalar(); toast("Baho saqlandi"); } catch (e) { toast(errText(e), true); }
+    };
+    $("#apOk").onclick = () => {
+      const v = Math.round(+digits($("#apVal").value) / 1000) * 1000, why = $("#apWhy").value.trim(), er = $("#apErr");
+      if (!(v > 0)) { er.textContent = "Bahoni kiriting"; return er.classList.remove("hidden"); }
+      if (why.length < 3) { er.textContent = "Sababini yozing"; return er.classList.remove("hidden"); }
+      save({manualUzs: v, manualReason: why, manualByName: S.me.fullName || ""});
+    };
+    if ($("#apDel")) $("#apDel").onclick = () => save({manualUzs: deleteField(), manualReason: deleteField(), manualByName: deleteField()});
   });
   document.querySelectorAll("[data-arzdel]").forEach(b => b.onclick = async () => {
     if (!await confirmBox("Arizani butunlay o'chirasizmi?", "O'chirish")) return;
