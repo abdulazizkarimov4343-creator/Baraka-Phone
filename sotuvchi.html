@@ -228,7 +228,8 @@ details summary{cursor:pointer;color:var(--g);font-weight:600;margin-top:8px;fon
 .bph{position:relative;aspect-ratio:3/4;border:1.5px dashed var(--yLine);border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
 .bphotos.view .bph{border-style:solid;border-color:var(--line)}
 .bph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.bph .plus{font-size:28px;color:var(--yDeep)}
+.bph .guide{width:78%;height:auto;margin-bottom:18px}
+.bph .cam{position:absolute;top:6px;right:6px;font-size:15px;opacity:.75}
 .bph .lab{position:absolute;left:4px;right:4px;bottom:4px;background:rgba(0,20,60,.72);color:#fff;font-size:11px;padding:2px 6px;border-radius:6px;text-align:center}
 .bph input{position:absolute;inset:0;opacity:0;cursor:pointer}
 @media (max-width:500px){.bphotos{grid-template-columns:repeat(2,1fr)}}
@@ -280,7 +281,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-7";
+const APP_VERSION = "2026.10.15-8";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -895,6 +896,27 @@ const IS_ADMIN = false;
    Rasmlar "photos" to'plamiga (arizaId bilan) yoziladi; ruxsat bo'lmasa ariza ichiga saqlanadi. */
 const BUY_SLOTS = ["Old tomoni", "Orqa tomoni", "Tepasi", "Tagi", "Chap yon tomoni", "O'ng yon tomoni"];
 let BUY = null;
+// Bo'sh katakdagi yo'riqnoma chizmasi: telefonning qaysi tomonini suratga olish kerakligi (sariq — shu tomon)
+const Y = "#E8B921", L = "#9AA8C2", F = "#EEF2F8";
+function guideSvg(i) {
+  const body = (x, y, w, h, r, hl) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${F}" stroke="${hl ? Y : L}" stroke-width="${hl ? 5 : 3}"/>`;
+  const btn = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${L}"/>`;
+  const parts = [
+    // 0 Old tomoni: ekran va Dynamic Island
+    body(30, 12, 60, 116, 12, 1) + `<rect x="36" y="18" width="48" height="104" rx="8" fill="#DCE4F2"/><rect x="50" y="23" width="20" height="6" rx="3" fill="${L}"/>`,
+    // 1 Orqa tomoni: kamera bloki
+    body(30, 12, 60, 116, 12, 1) + `<rect x="36" y="18" width="26" height="26" rx="7" fill="#DCE4F2" stroke="${L}" stroke-width="2"/><circle cx="44" cy="26" r="4.5" fill="${L}"/><circle cx="54" cy="36" r="4.5" fill="${L}"/><circle cx="44" cy="37" r="3" fill="${L}"/><circle cx="60" cy="78" r="6" fill="none" stroke="${L}" stroke-width="2"/>`,
+    // 2 Tepasi: telefon yuqoridan, ustki qirra belgilangan
+    body(30, 30, 60, 98, 12, 0) + `<rect x="34" y="12" width="52" height="10" rx="5" fill="${F}" stroke="${Y}" stroke-width="4"/><rect x="54" y="15" width="12" height="4" rx="2" fill="${L}"/>`,
+    // 3 Tagi: zaryadlash porti va dinamik teshiklari
+    body(30, 12, 60, 98, 12, 0) + `<rect x="34" y="118" width="52" height="10" rx="5" fill="${F}" stroke="${Y}" stroke-width="4"/><rect x="54" y="121" width="12" height="4" rx="2" fill="${L}"/>${[40, 44, 48, 72, 76, 80].map(x => `<circle cx="${x}" cy="123" r="1.3" fill="${L}"/>`).join("")}`,
+    // 4 Chap yon tomoni: ovoz tugmalari
+    `<rect x="48" y="12" width="24" height="116" rx="10" fill="${F}" stroke="${Y}" stroke-width="5"/>` + btn(44, 30, 4, 10) + btn(44, 46, 4, 16) + btn(44, 66, 4, 16),
+    // 5 O'ng yon tomoni: quvvat tugmasi
+    `<rect x="48" y="12" width="24" height="116" rx="10" fill="${F}" stroke="${Y}" stroke-width="5"/>` + btn(72, 40, 4, 24)
+  ];
+  return `<svg class="guide" viewBox="0 0 120 140" aria-hidden="true">${parts[i]}</svg>`;
+}
 const isSellAriza = x => !x.ourModel;
 function buyInfoHtml(x) {
   const b = x.bought, l = x.listed;
@@ -928,7 +950,7 @@ function renderBuyModal() {
   modal(`<h2>Telefon sotib olindi</h2><p class="src" style="margin:0 0 10px">${esc(d.name || "")} ${esc(d.mem || "")}${d.color ? ", " + esc(d.color) : ""} · ${esc(x.client?.name || "")} · taxminiy baho ${uzs(x.manualUzs || x.deviceUzs)}</p>
   <div class="field"><label for="bPrice">Nech pulga olindi, so'm *</label><input class="inp" id="bPrice" inputmode="numeric" value="${BUY.price ? sum(BUY.price) : ""}"></div>
   <div class="lbl" style="margin-bottom:6px">Rasmlar * (<span id="bCnt">${done}</span>/6)</div>
-  <div class="bphotos">${BUY_SLOTS.map((l, i) => `<label class="bph">${BUY.photos[i] ? `<img src="${BUY.photos[i]}" alt="">` : `<span class="plus">+</span>`}<span class="lab">${esc(l)}</span><input type="file" accept="image/*" capture="environment" data-bslot="${i}"></label>`).join("")}</div>
+  <div class="bphotos">${BUY_SLOTS.map((l, i) => `<label class="bph">${BUY.photos[i] ? `<img src="${BUY.photos[i]}" alt="">` : guideSvg(i) + `<span class="cam">📷</span>`}<span class="lab">${esc(l)}</span><input type="file" accept="image/*" capture="environment" data-bslot="${i}"></label>`).join("")}</div>
   <div id="bErr" class="err hidden"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button class="btn sec" id="bNo">Bekor qilish</button><button class="btn pri" id="bOk" ${BUY.saving ? "disabled" : ""}>${BUY.saving ? "Saqlanmoqda…" : "Saqlash"}</button></div>`, true);
 }
@@ -1011,7 +1033,7 @@ document.addEventListener("change", async e => {
   try {
     const data = await shrinkPhoto(e.target.files[0]); if (!BUY) return;
     BUY.photos[+i] = data;
-    cell.querySelector("img, .plus")?.remove(); cell.insertAdjacentHTML("afterbegin", `<img src="${data}" alt="">`);
+    cell.querySelectorAll("img, .guide, .cam").forEach(n => n.remove()); cell.insertAdjacentHTML("afterbegin", `<img src="${data}" alt="">`);
     const n = $("#bCnt"); if (n) n.textContent = BUY.photos.filter(Boolean).length;
     $("#bErr")?.classList.add("hidden");
   } catch (er) { toast(er.message, true); }
