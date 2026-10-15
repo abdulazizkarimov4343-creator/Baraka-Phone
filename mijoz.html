@@ -266,7 +266,8 @@ select.inp{appearance:auto}
 .warn{background:var(--warnSoft);border:1px solid #F1D08A;color:#8A5A00;border-radius:12px;padding:12px 14px;font-weight:600;margin:14px 0}
 .wwarn{position:relative;z-index:1;margin-top:12px;background:rgba(232,185,33,.18);border:1px solid rgba(232,185,33,.7);color:#FFE08A;border-radius:10px;padding:9px 12px;font-weight:600;font-size:14px}
 .cycu{font-size:16px!important;font-weight:600!important}
-.action .btn.sec{flex:1}
+.hbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+@media (max-width:640px){.hbtns{grid-template-columns:1fr}}
 .phin{display:flex;align-items:stretch}
 .phin span{display:flex;align-items:center;padding:0 12px;background:var(--gSoft);border:1px solid var(--line);border-right:0;border-radius:10px 0 0 10px;font-weight:700;color:var(--g)}
 .phin .inp{border-radius:0 10px 10px 0}
@@ -293,7 +294,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-8";
+const APP_VERSION = "2026.10.15-9";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -542,7 +543,7 @@ const RU = {
   "Siz topshirasiz": "Вы сдаёте", "Siz olasiz": "Вы получаете", "Oylik to'lov, {n} oy": "Ежемесячный платёж, {n} мес.",
   "Bog'lanish uchun": "Контакты", "Ismingiz *": "Ваше имя *", "Telefon raqamingiz *": "Ваш номер телефона *",
   "Izoh (ixtiyoriy)": "Комментарий (необязательно)", "Masalan: qachon qo'ng'iroq qilish qulay": "Например: когда удобно позвонить",
-  "Telefonni sotish uchun murojaat": "Обращение на продажу телефона", "Boshqa telefon xarid qilish": "Купить другой телефон",
+  "Telefonni sotish uchun murojaat": "Обращение на продажу телефона", "Murojaat qoldirish": "Оставить обращение", "Telefonimni sotish": "Продать мой телефон",
   "Telefoningizni sotish": "Продажа телефона", "Ismingiz va raqamingizni qoldiring — adminlarimiz siz bilan bog'lanadi": "Оставьте имя и номер — наши администраторы свяжутся с вами",
   "Taxminiy baho": "Примерная оценка", "Murojaatni yuborish": "Отправить обращение",
   "Yangi telefon tanlash": "Выбрать новый телефон", "To'lovga o'tish": "Перейти к оплате", "Ariza qoldirish": "Оставить заявку",
@@ -669,7 +670,7 @@ function renderStockGrid() {
 function renderHome() {
   $("#page").innerHTML = `<div class="welcome"><h1>${t("Eski iPhone'ingizni yangisiga almashtiring")}</h1><p>${t("Telefoningiz narxini darhol bilib oling — login va parol kerak emas.")}</p>
   <div class="wwarn">⚠️ ${t("Diqqat! Ushbu telefon bahosi tekshiruv jarayonida oshishi yoki tushishi mumkin!")}</div></div>
-  <button class="btn pri block" data-act="start" style="margin-bottom:18px">${t("Telefonimni baholash →")}</button>
+  <div class="hbtns"><button class="btn pri" data-act="start">${t("Telefonimni baholash →")}</button><button class="btn sec" data-act="startSell">${t("Telefonimni sotish")}</button></div>
   <h3 style="margin-top:0">${t("Sotuvdagi telefonlar")}</h3>
   <input class="inp" id="q2" placeholder="${esc(t("Qidirish: model, xotira yoki rang"))}" value="${esc(W.q2)}" style="margin-bottom:12px">
   <div class="pgrid" id="stockGrid"></div>`;
@@ -770,12 +771,10 @@ function renderAction() {
   if (W.done || !W.started || (W.step === 0 && W.q < SUMMARY)) { bar.innerHTML = ""; $("#actionBar").classList.add("hidden"); return; }
   $("#actionBar").classList.remove("hidden");
   if (W.step === 3) { bar.innerHTML = `<button class="btn green" data-act="next" ${canNext() ? "" : "disabled"}>${W.saving ? t("Yuborilmoqda…") : W.sell ? "✓ " + t("Murojaatni yuborish") : t("✓ Arizani yuborish")}</button>`; return; }
-  // Baholashdan keyin (telefon oldindan tanlanmagan bo'lsa): sotish uchun murojaat yoki boshqa telefon xarid qilish
-  if (W.step === 0 && !W.pre) { bar.innerHTML = `<button class="btn sec" data-act="sell" ${canNext() ? "" : "disabled"}>${t("Telefonni sotish uchun murojaat")}</button><button class="btn pri" data-act="next" ${canNext() ? "" : "disabled"}>${t("Boshqa telefon xarid qilish")}</button>`; return; }
-  const label = {1: "Yangi telefon tanlash", 2: "To'lovga o'tish", 3: "Ariza qoldirish"}[nextStep(W.step)];
+  const label = W.sell ? "Murojaat qoldirish" : {1: "Yangi telefon tanlash", 2: "To'lovga o'tish", 3: "Ariza qoldirish"}[nextStep(W.step)];
   bar.innerHTML = `${W.step > 0 ? `<button class="btn sec" data-act="prev">${t("Orqaga")}</button>` : ""}<button class="btn pri" data-act="next" ${canNext() ? "" : "disabled"}>${t(label)}</button>`;
 }
-const refreshNext = () => document.querySelectorAll("[data-act=next],[data-act=sell]").forEach(b => b.disabled = !canNext());
+const refreshNext = () => { const b = document.querySelector("[data-act=next]"); if (b) b.disabled = !canNext(); };
 function answer(k, v) {
   if (k === "model") { if (W.modelId !== v) { W.mem = null; W.color = ""; } W.modelId = v; } else W[k] = v;
   let next = W.q + 1; while (QS[next] && QS[next].cond && !QS[next].cond()) next++;
@@ -834,6 +833,8 @@ document.addEventListener("click", e => {
   if (b.dataset.lang) { LANG = b.dataset.lang; try { localStorage.setItem("lang", LANG); } catch (er) {} return renderWizard(); }
   if (b.dataset.ans) return answer(b.dataset.ans, b.dataset.v);
   if (a === "start") { Object.assign(W, {started: true, pre: false, sell: false, stockId: null, step: 0}); renderWizard(); return goTop(); }
+  // Faqat sotish: baholash → murojaat (telefon tanlanmaydi)
+  if (a === "startSell") { Object.assign(W, {started: true, pre: false, sell: true, stockId: null, step: 0}); renderWizard(); return goTop(); }
   if (a === "home") { Object.assign(W, {started: false, pre: false, sell: false, stockId: null, step: 0}); renderWizard(); return goTop(); }
   if (a === "qback") { if (W.hist.length) { W.q = W.hist.pop(); renderWizard(); goTop(); } return; }
   if (a === "redo") { W.hist = []; W.q = 0; return renderWizard(); }
@@ -841,8 +842,7 @@ document.addEventListener("click", e => {
   if (a === "colorSkip") return answer("color", "");
   if (a === "battOk") { W.batt = Math.max(1, Math.min(100, Math.round(+$("#battN").value || 0))); return answer("batt", W.batt); }
   if (a === "cycOk") { const v = $("#cycN").value; if (v === "") return toast(t("Sikl sonini kiriting")); return answer("cyc", Math.max(0, Math.round(+v))); }
-  if (a === "sell" && canNext()) { Object.assign(W, {sell: true, stockId: null, step: 3}); renderWizard(); return goTop(); }
-  if (a === "prev") { const p = prevStep(W.step); if (W.sell && p === 0) W.sell = false; W.step = p; renderWizard(); return goTop(); }
+  if (a === "prev") { W.step = prevStep(W.step); renderWizard(); return goTop(); }
   if (a === "next" && canNext()) { if (W.step === 3) return saveAriza(); W.step = nextStep(W.step); renderWizard(); return goTop(); }
   if (a === "new") { W = freshW(); renderWizard(); return goTop(); }
   if (b.dataset.stock) {
