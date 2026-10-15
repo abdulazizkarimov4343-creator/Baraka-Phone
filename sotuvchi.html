@@ -272,7 +272,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-1";
+const APP_VERSION = "2026.10.15-2";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -524,6 +524,16 @@ function condSvg(kind, v) {
   return `<svg viewBox="0 0 420 270" role="img" aria-label="${kind === "screen" ? "Ekran" : "Korpus"} holati" preserveAspectRatio="xMaxYMid slice">${defs}<rect width="420" height="270" fill="#EEF2F8"/>${body}</svg>`;
 }
 
+// Rang nomlari: asl nomi yonida qavs ichida o'zbekcha nomi
+const COLOR_UZ = {"black": "qora", "white": "oq", "silver": "kumush", "gold": "oltin", "space gray": "kulrang", "space grey": "kulrang", "space black": "qora",
+  "midnight": "to'q qora", "starlight": "och oltin", "blue": "ko'k", "red": "qizil", "(product)red": "qizil", "green": "yashil", "purple": "binafsha",
+  "deep purple": "to'q binafsha", "yellow": "sariq", "pink": "pushti", "coral": "marjon", "graphite": "to'q kulrang", "sierra blue": "och ko'k",
+  "pacific blue": "to'q ko'k", "alpine green": "to'q yashil", "midnight green": "to'q yashil", "natural titanium": "tabiiy titan", "black titanium": "qora titan",
+  "white titanium": "oq titan", "blue titanium": "ko'k titan", "desert titanium": "qum rang titan", "teal": "firuza", "ultramarine": "to'q ko'k",
+  "cosmic orange": "to'q sariq", "deep blue": "to'q ko'k", "lavender": "och binafsha", "mist blue": "och ko'k", "sage": "och yashil",
+  "cloud white": "oq", "light gold": "och oltin", "sky blue": "havorang", "burgundy": "to'q qizil", "glacier blue": "och ko'k"};
+const colorUz = c => { const u = COLOR_UZ[String(c || "").trim().toLowerCase()]; return u ? `${c} (${u})` : String(c || ""); };
+
 /* ================= TRADE-IN WIZARD ================= */
 const STEPS = ["Narxlash", "Almashtirish", "Nasiya", "Tasdiqlash"];
 const PHOTO_SLOTS = ["Old tomoni", "Orqa tomoni", "Yoqilgan ekran", "IMEI (*#06#)"];
@@ -605,7 +615,7 @@ function questionHtml() {
   if (Q.k === "brand") { const brands = [...new Set(S.models.map(x => x.brand))]; h += `<div class="olist">${brands.map(b => `<button class="opt ${W.brand === b ? "on" : ""}" data-ans="brand" data-v="${esc(b)}">${esc(b)}<small>${S.models.filter(x => x.brand === b).length} ta model</small></button>`).join("")}</div>`; }
   else if (Q.k === "model") h += `<input class="inp" id="mq" placeholder="Model nomini yozing, masalan 13 Pro" value="${esc(W.mq)}" autocomplete="off"><div class="mlist" id="mlist"></div>`;
   else if (Q.k === "mem") h += `<p class="qhint">${esc(m.brand)} ${esc(m.name)}</p><div class="ogrid">${m.mems.map(x => `<button class="opt ${W.mem === x ? "on" : ""}" data-ans="mem" data-v="${esc(x)}">${esc(x)}</button>`).join("")}</div>`;
-  else if (Q.k === "color") { const cols = colorsOf(m); h += `<p class="qhint">${esc(m.brand)} ${esc(m.name)}</p><div class="ogrid">${cols.map(c => `<button class="opt ${W.color === c ? "on" : ""}" data-ans="color" data-v="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+  else if (Q.k === "color") { const cols = colorsOf(m); h += `<p class="qhint">${esc(m.brand)} ${esc(m.name)}</p><div class="ogrid">${cols.map(c => `<button class="opt ${W.color === c ? "on" : ""}" data-ans="color" data-v="${esc(c)}">${esc(colorUz(c))}</button>`).join("")}</div>
     <div style="display:flex;gap:8px;margin-top:14px"><input class="inp" id="colorTxt" placeholder="Ro'yxatda yo'q bo'lsa, yozing" value="${esc(cols.includes(W.color) ? "" : W.color)}"><button class="btn sec" data-act="colorOk">Davom etish</button></div>
     <button class="qback" style="margin-top:10px" data-act="colorSkip">Rangsiz davom etish</button>`; }
   else if (Q.k === "batt") h += `<div class="bigin"><input type="range" class="rng" id="battR" min="50" max="100" value="${W.batt}" style="--p:${((W.batt - 50) / 50 * 100).toFixed(1)}%"><label class="bv"><input type="number" id="battN" min="1" max="100" value="${W.batt}"><span>%</span></label></div><button class="btn pri block" style="margin-top:14px" data-act="battOk">Davom etish</button>`;
@@ -626,7 +636,7 @@ function renderModelList() {
 function summaryHtml() {
   const c = clientCalc(), m = curModel();
   let h = `${W.hist.length ? `<button class="qback" data-act="qback">← Orqaga</button>` : ""}` + hero("✆", "Telefon baholash", "Mijozning telefoni") + `
-  <div class="field"><span class="lbl">Mahsulot</span><div class="ro">B/U ${esc(m.brand)} ${esc(m.name)} ${esc(W.mem)}${W.color ? " " + esc(W.color) : ""}</div></div>
+  <div class="field"><span class="lbl">Mahsulot</span><div class="ro">B/U ${esc(m.brand)} ${esc(m.name)} ${esc(W.mem)}${W.color ? " " + esc(colorUz(W.color)) : ""}</div></div>
   <div class="field"><label for="imei">IMEI</label><input class="inp" id="imei" inputmode="numeric" maxlength="15" value="${esc(W.imei)}" placeholder="*#06# terib bilib olinadi"></div>
   <button class="qback" data-act="redo">Javoblarni qaytadan ko'rib chiqish</button>`;
   if (c.rejected) return h + `<div class="err">Telefon iCloud / Google akkauntga bog'langan — qabul qilinmaydi. Mijozdan akkauntdan chiqishni so'rang.</div>`;
@@ -639,8 +649,8 @@ function summaryHtml() {
 function renderStockGrid() {
   const q = W.q2.trim().toLowerCase(), match = s => s.status === "sotuvda" && (!q || `${s.modelName} ${s.mem} ${s.color}`.toLowerCase().includes(q));
   const mine = S.stock.filter(match), other = S.stockAll.filter(s => s.branchId !== S.me.branchId && match(s));
-  const card = s => `<button class="card ${W.stockId === s.id ? "on" : ""}" data-stock="${s.id}"><b>${esc(s.modelName)} <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span></b><span class="m">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", " + s.battery + "%" : ""}</span><span class="p">${uzs(toUzs(s.sellUsd))}</span></button>`;
-  const ocard = s => `<div class="card other" title="Ro'yxat admin panel orqali yangilanadi"><b>${esc(s.modelName)} <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span></b><span class="m">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", " + s.battery + "%" : ""}</span><span class="p">${uzs(toUzs(s.sellUsd))}</span><span class="badge gold" style="align-self:flex-start;margin-top:4px">${esc(bName(s.branchId))}</span><span class="m">Adminga qo'ng'iroq qiling — telefonni filialingizga ko'chirib beradi</span></div>`;
+  const card = s => `<button class="card ${W.stockId === s.id ? "on" : ""}" data-stock="${s.id}"><b>${esc(s.modelName)} <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span></b><span class="m">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", " + s.battery + "%" : ""}</span><span class="p">${uzs(toUzs(s.sellUsd))}</span></button>`;
+  const ocard = s => `<div class="card other" title="Ro'yxat admin panel orqali yangilanadi"><b>${esc(s.modelName)} <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span></b><span class="m">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", " + s.battery + "%" : ""}</span><span class="p">${uzs(toUzs(s.sellUsd))}</span><span class="badge gold" style="align-self:flex-start;margin-top:4px">${esc(bName(s.branchId))}</span><span class="m">Adminga qo'ng'iroq qiling — telefonni filialingizga ko'chirib beradi</span></div>`;
   $("#stockGrid").innerHTML = `<h3 style="margin-top:0;grid-column:1/-1">${esc(S.branch.name)} (sizning filialingiz)</h3>` +
     (mine.length ? mine.map(card).join("") : `<div class="empty" style="grid-column:1/-1">Filialingizda sotuvdagi telefon yo'q.</div>`) +
     (other.length ? `<h3 style="grid-column:1/-1">Boshqa filiallarda</h3>` + other.map(ocard).join("") : "");
@@ -718,7 +728,7 @@ async function saveDeal() {
       schedule: p ? schedule(p, months) : [], createdAt: serverTimestamp()});
     b.update(doc(db, "stock", st.id), {status: "sotilgan", sold: {kind: "deal", ref: dealRef.id, at: serverTimestamp(), clientName: client.name, priceUzs: our}, updatedAt: serverTimestamp()});
     b.set(newRef, {branchId: S.me.branchId, modelName: m.name, brand: m.brand, mem: W.mem, color: W.color, imei: digits(W.imei), grade: c.gradeLetter || "D",
-      battery: W.batt, buyUsd: c.usd, sellUsd: c.sellUsd, status: "tayyorlanmoqda", source: "trade-in", sourceDealId: dealRef.id,
+      battery: W.batt, cyc: hasCycles(m) && W.cyc != null ? W.cyc : null, box: W.box || "", buyUsd: c.usd, sellUsd: c.sellUsd, status: "tayyorlanmoqda", source: "trade-in", sourceDealId: dealRef.id,
       createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()});
     await b.commit();
     // Rasmlar — shartnomadan keyin, alohida
@@ -769,7 +779,7 @@ function renderStock() {
 }
 function stockListHtml(items) {
   return items.length ? items.map(s => `<div class="item"><div><b>${esc(s.modelName)}</b> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span>
-    <div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", batareya " + s.battery + "%" : ""}${s.imei ? ", IMEI " + esc(s.imei) : ""}</div>
+    <div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", batareya " + s.battery + "%" : ""}${s.imei ? ", IMEI " + esc(s.imei) : ""}</div>
     <div class="src">${s.other ? "Boshqa filial" : `Tannarx: ${uzs(toUzs(s.buyUsd))}`}${s.status === "sotilgan" && s.sold ? ` · Sotildi ${fdt(s.sold.at)}, ${esc(s.sold.clientName || "")}` : ""}</div>
     ${s.branchId !== S.me.branchId ? `<div><span class="badge gold">${esc(bName(s.branchId))}</span></div>` : ""}</div>
     <div style="text-align:right"><div class="p">${uzs(s.status === "sotilgan" && s.sold?.priceUzs ? s.sold.priceUzs : toUzs(s.sellUsd))}</div>
@@ -783,7 +793,7 @@ function openSale(id) {
 }
 function renderSale() {
   const s = S.stock.find(x => x.id === SALE.id);
-  modal(`<h2>Telefonni sotish</h2><p class="hint" style="margin-top:0">${esc(s.modelName)} ${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}</p>
+  modal(`<h2>Telefonni sotish</h2><p class="hint" style="margin-top:0">${esc(s.modelName)} ${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}</p>
   <div class="field"><label for="slPrice">Sotuv narxi, so'm</label><input class="inp" id="slPrice" type="number" inputmode="numeric" value="${SALE.price}"><div class="hint">Tannarx: ${uzs(SALE.min)}. Undan arzon sotib bo'lmaydi.</div></div>
   <div class="chips">${[["naqd", "Naqd"], ["nasiya", "Nasiya"]].map(([k, l]) => `<button class="chip ${SALE.type === k ? "on" : ""}" data-slt="${k}">${l}</button>`).join("")}</div>
   ${SALE.type === "nasiya" ? `${sliderHtml("slRange", SALE.months)}<div id="slPlan" style="margin-top:10px">${salePlanHtml()}</div>` : ""}

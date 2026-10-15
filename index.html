@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-1";
+const APP_VERSION = "2026.10.15-2";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -343,7 +343,7 @@ function syncCatalog() {
   clearTimeout(catalogTimer);
   catalogTimer = setTimeout(async () => {
     try {
-      const items = S.stock.filter(s => s.status === "sotuvda").map(s => ({id: s.id, branchId: s.branchId, modelName: s.modelName || "", mem: s.mem || "", color: s.color || "", grade: s.grade || "", battery: s.battery || null, sellUsd: s.sellUsd || 0}));
+      const items = S.stock.filter(s => s.status === "sotuvda").map(s => ({id: s.id, branchId: s.branchId, modelName: s.modelName || "", brand: s.brand || "", mem: s.mem || "", color: s.color || "", grade: s.grade || "", battery: s.battery || null, cyc: s.cyc ?? null, box: s.box || "", sellUsd: s.sellUsd || 0}));
       const branches = Object.fromEntries(S.branches.map(b => [b.id, b.name]));
       await setDoc(doc(db, "settings", "catalog"), {items, branches, updatedAt: serverTimestamp()});
     } catch (e) { console.warn("catalog", e); }
@@ -585,7 +585,7 @@ function renderStock() {
     const sold = s.status === "sotilgan";
     const pr = sold && s.sold?.priceUzs ? s.sold.priceUzs - toUzs(s.buyUsd) : toUzs(s.sellUsd) - toUzs(s.buyUsd);
     return `<tr>
-    <td><b>${esc(s.modelName)}</b> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.imei ? "<br>IMEI " + esc(s.imei) : ""}</div>
+    <td><b>${esc(s.modelName)}</b> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.cyc != null ? ", " + s.cyc + " sikl" : ""}${s.box ? (s.box === "yes" ? ", qutisi bor" : ", qutisiz") : ""}${s.imei ? "<br>IMEI " + esc(s.imei) : ""}</div>
       <div class="src">${s.source === "trade-in" ? "Trade-in orqali" : "Xarid"} · ${fdate(s.createdAt)}</div>
       ${(s.transfers || []).length ? `<div class="src">Ko'chirilgan: ${s.transfers.map(t => `${esc(bName(t.from))} → ${esc(bName(t.to))} (${fdate(t.at)})`).join("; ")}</div>` : ""}
       ${sold && s.sold ? `<div class="src"><b>Sotildi:</b> ${fdate(s.sold.at)}, ${esc(s.sold.clientName || "")} (${s.sold.kind === "deal" ? "trade-in" : "sotuv"})</div>` : ""}</td>
@@ -594,7 +594,7 @@ function renderStock() {
     <td class="n">${sold ? usd(s.sellUsd) : `<input class="inp sm" type="number" step="1" data-sell="${s.id}" value="${s.sellUsd}">`}<div class="src">${uzs(toUzs(s.sellUsd))}</div></td>
     <td class="n"><b style="color:${pr >= 0 ? "var(--ok)" : "var(--bad)"}">${uzs(pr)}</b></td>
     <td>${sold ? `<span class="badge grey">Sotilgan</span>` : `<select class="inp" style="min-height:36px;padding:6px 8px;min-width:140px" data-status="${s.id}">${["sotuvda", "tayyorlanmoqda"].map(k => `<option value="${k}" ${s.status === k ? "selected" : ""}>${ST_LABEL[k]}</option>`).join("")}</select>`}</td>
-    <td style="white-space:nowrap">${sold ? (isOwner() ? `<button class="btn bad sm" data-delsold="${s.id}">O'chirish</button>` : "") : `<button class="btn sec sm" data-move="${s.id}">Ko'chirish</button> <button class="btn bad sm" data-delstock="${s.id}">O'chirish</button>`}</td></tr>`}).join("")}
+    <td style="white-space:nowrap">${sold ? (isOwner() ? `<button class="btn bad sm" data-delsold="${s.id}">O'chirish</button>` : "") : `<button class="btn sec sm" data-sedit="${s.id}">Tahrirlash</button> <button class="btn sec sm" data-move="${s.id}">Ko'chirish</button> <button class="btn bad sm" data-delstock="${s.id}">O'chirish</button>`}</td></tr>`}).join("")}
   </tbody></table></div>` : `<div class="panel empty">Bu bo'limda telefon yo'q.</div>`}`;
   document.querySelectorAll("[data-sf]").forEach(b => b.onclick = () => { S.stockFilter = b.dataset.sf; renderStock(); });
   $("#addStock").onclick = stockModal;
@@ -609,6 +609,7 @@ function renderStock() {
     try { await updateDoc(doc(db, "stock", sel.dataset.status), {status: sel.value, updatedAt: serverTimestamp()}); stockById(sel.dataset.status).status = sel.value; renderStock(); syncCatalog(); toast("Holat o'zgartirildi"); } catch (e) { toast(errText(e), true); }
   });
   document.querySelectorAll("[data-move]").forEach(b => b.onclick = () => moveModal(stockById(b.dataset.move)));
+  document.querySelectorAll("[data-sedit]").forEach(b => b.onclick = () => stockEditModal(stockById(b.dataset.sedit)));
   document.querySelectorAll("[data-delsold]").forEach(b => b.onclick = async () => {
     if (!isOwner()) return;
     const st = stockById(b.dataset.delsold), linked = st.sold?.ref && (S.deals.some(d => d.id === st.sold.ref) || S.sales.some(x => x.id === st.sold.ref));
@@ -625,6 +626,23 @@ function renderStock() {
     if (!await confirmBox("Telefon ombordan butunlay o'chirilsinmi?", "O'chirish")) return;
     try { await deleteDoc(doc(db, "stock", b.dataset.delstock)); S.stock = S.stock.filter(s => s.id !== b.dataset.delstock); renderStock(); syncCatalog(); toast("O'chirildi"); } catch (e) { toast(errText(e), true); }
   });
+}
+// Mijoz sahifasidagi kartochkada ko'rinadigan ma'lumotlar
+function stockEditModal(s) {
+  modal(`<h2>Telefon ma'lumotlari</h2><p class="sub">${esc(s.modelName)} ${esc(s.mem || "")}. Bu ma'lumotlar mijoz sahifasidagi kartochkada ko'rinadi.</p>
+  <div class="row"><div class="field"><label>Rangi</label><input class="inp" id="eColor" value="${esc(s.color || "")}"></div>
+    <div class="field"><label>Daraja</label><select class="inp" id="eGrade">${["A", "B", "C", "D"].map(g => `<option ${s.grade === g ? "selected" : ""}>${g}</option>`).join("")}</select></div></div>
+  <div class="row"><div class="field"><label>Batareya, %</label><input class="inp" id="eBatt" type="number" min="1" max="100" value="${s.battery ?? ""}"></div>
+    <div class="field"><label>Batareya sikli</label><input class="inp" id="eCyc" type="number" min="0" value="${s.cyc ?? ""}"></div>
+    <div class="field"><label>Qutisi</label><select class="inp" id="eBox"><option value="">—</option><option value="yes" ${s.box === "yes" ? "selected" : ""}>Bor</option><option value="no" ${s.box === "no" ? "selected" : ""}>Yo'q</option></select></div></div>
+  <div class="acts"><button class="btn sec" id="eNo">Bekor qilish</button><button class="btn pri" id="eOk">Saqlash</button></div>`);
+  $("#eNo").onclick = closeModal;
+  $("#eOk").onclick = async () => {
+    const data = {color: $("#eColor").value.trim(), grade: $("#eGrade").value, battery: +$("#eBatt").value || null,
+      cyc: $("#eCyc").value === "" ? null : Math.max(0, Math.round(+$("#eCyc").value)), box: $("#eBox").value};
+    try { await updateDoc(doc(db, "stock", s.id), {...data, updatedAt: serverTimestamp()}); Object.assign(s, data); closeModal(); renderStock(); syncCatalog(); toast("Saqlandi"); }
+    catch (e) { toast(errText(e), true); }
+  };
 }
 function moveModal(s) {
   const opts = S.branches.filter(b => b.active !== false && b.id !== s.branchId).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join("");
@@ -650,6 +668,8 @@ function stockModal() {
     <div class="field"><label>Rangi</label><input class="inp" id="nColor" list="nColors"><datalist id="nColors"></datalist></div></div>
   <div class="row"><div class="field"><label>Daraja</label><select class="inp" id="nGrade"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
     <div class="field"><label>Batareya, %</label><input class="inp" id="nBatt" type="number" min="1" max="100" value="100"></div></div>
+  <div class="row"><div class="field"><label>Batareya sikli</label><input class="inp" id="nCyc" type="number" min="0" placeholder="bilmasangiz bo'sh qoldiring"></div>
+    <div class="field"><label>Qutisi</label><select class="inp" id="nBox"><option value="yes">Bor</option><option value="no">Yo'q</option></select></div></div>
   <div class="field"><label>IMEI</label><input class="inp" id="nImei" inputmode="numeric" maxlength="15"></div>
   <div class="row"><div class="field"><label>Tannarx, $</label><input class="inp" id="nBuy" type="number" min="0"></div>
     <div class="field"><label>Sotish narxi, $</label><input class="inp" id="nSell" type="number" min="0"></div></div>
@@ -666,7 +686,8 @@ function stockModal() {
     const warn = [buy > PRICE_LIMIT || sell > PRICE_LIMIT ? `narx ${usd(PRICE_LIMIT)} dan yuqori` : "", sell < buy ? "sotish narxi tannarxdan past" : "", sell > buy * 3 ? "sotish narxi tannarxdan 3 barobardan ko'p" : ""].filter(Boolean);
     if (warn.length && !$("#nSave").dataset.ok) { e.innerHTML = `Diqqat: ${warn.join(", ")}. Tannarx ${usd(buy)} (${uzs(toUzs(buy))}), sotish ${usd(sell)} (${uzs(toUzs(sell))}). To'g'ri bo'lsa, yana bir marta <b>Qo'shish</b> ni bosing.`; e.classList.remove("hidden"); $("#nSave").dataset.ok = "1"; return; }
     const data = {branchId: $("#nBranch").value, modelName: m.name, brand: m.brand, mem: $("#nMem").value, color: $("#nColor").value.trim(), imei: digits($("#nImei").value),
-      grade: $("#nGrade").value, battery: +$("#nBatt").value || null, buyUsd: buy, sellUsd: sell, status: "sotuvda", source: "xarid",
+      grade: $("#nGrade").value, battery: +$("#nBatt").value || null, cyc: $("#nCyc").value === "" ? null : Math.max(0, Math.round(+$("#nCyc").value)), box: $("#nBox").value,
+      buyUsd: buy, sellUsd: sell, status: "sotuvda", source: "xarid",
       createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()};
     try { const ref = doc(collection(db, "stock")); await setDoc(ref, data); S.stock.unshift({id: ref.id, ...data, createdAt: new Date()}); closeModal(); renderStock(); syncCatalog(); toast("Omborga qo'shildi"); }
     catch (er) { e.textContent = errText(er); e.classList.remove("hidden"); }
@@ -1048,6 +1069,43 @@ function branchModal(b) {
 
 /* ================= SETTINGS ================= */
 const PT_NAME = {screen: "Ekran", body: "Korpus", bio: "Face ID / Touch ID", cam: "Kamera", repair: "Ta'mir"};
+/* Model rasmi — mijoz sahifasidagi telefon kartochkasida chiqadi.
+   Havola (masalan apple.com'dagi rasm manzili) yoki fayl; fayl oq fonga joylanib, siqib saqlanadi. */
+function shrinkImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const g = cv.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+      let q = 0.85, out = cv.toDataURL("image/jpeg", q);
+      while (out.length > 120000 && q > 0.4) { q -= 0.1; out = cv.toDataURL("image/jpeg", q); }
+      URL.revokeObjectURL(url); res(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Rasmni o'qib bo'lmadi")); };
+    img.src = url;
+  });
+}
+function modelImgModal(m, done) {
+  let src = m.img || "";
+  const prev = () => { $("#miPrev").innerHTML = src ? `<img src="${esc(src)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain" onerror="this.parentNode.innerHTML='<span class=src>Rasm ochilmadi — havolani tekshiring</span>'">` : `<span class="src">Rasm yo'q</span>`; };
+  modal(`<h2>${esc(m.name)} — rasm</h2><p class="sub">Oq fondagi rasm mijoz sahifasidagi telefon kartochkasida chiqadi.</p>
+  <div id="miPrev" style="display:grid;place-items:center;min-height:160px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px"></div>
+  <div class="field"><label>Rasm havolasi</label><input class="inp" id="miUrl" placeholder="https://… (rasmga o'ng tugma → «Копировать адрес изображения»)" value="${esc(src.startsWith("data:") ? "" : src)}"></div>
+  <div class="field"><label>yoki fayl yuklash</label><input class="inp" id="miFile" type="file" accept="image/*"></div>
+  <div class="acts">${m.img ? `<button class="btn bad" id="miDel" style="margin-right:auto">Rasmni o'chirish</button>` : ""}<button class="btn sec" id="miNo">Bekor qilish</button><button class="btn pri" id="miOk">Saqlash</button></div>`);
+  prev();
+  $("#miUrl").oninput = e => { src = e.target.value.trim(); prev(); };
+  $("#miFile").onchange = async e => { const f = e.target.files?.[0]; if (!f) return; try { src = await shrinkImage(f); $("#miUrl").value = ""; prev(); } catch (er) { toast(er.message, true); } };
+  $("#miNo").onclick = closeModal;
+  const save = async v => {
+    if (v && !/^(https:\/\/|data:image\/)/.test(v)) return toast("Havola https:// bilan boshlanishi kerak", true);
+    try { await updateDoc(doc(db, "models", m.id), {img: v ? v : deleteField()}); if (v) m.img = v; else delete m.img; closeModal(); done(); toast(v ? "Rasm saqlandi" : "Rasm o'chirildi"); }
+    catch (e) { toast(errText(e), true); }
+  };
+  $("#miOk").onclick = () => save(src);
+  if ($("#miDel")) $("#miDel").onclick = () => save("");
+}
 function renderSettings() {
   const s = structuredClone(S.settings);
   const num = (path, v, step = 1, w = 90) => `<input class="inp sm" style="width:${w}px" type="number" step="${step}" data-set="${path}" value="${v}">`;
@@ -1088,7 +1146,7 @@ function renderSettings() {
   const rows = () => {
     const q = $("#mSearch").value.trim().toLowerCase();
     $("#mRows").innerHTML = S.models.filter(m => !q || (m.brand + " " + m.name).toLowerCase().includes(q)).map(m => `<tr>
-      <td><b>${esc(m.name)}</b><div class="src">${esc(m.brand)} · <button class="btn sec sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mc="${m.id}">Ranglar: ${(m.colors || []).length}</button></div></td><td class="src">${esc(m.mems.join(", "))}</td>
+      <td><b>${esc(m.name)}</b><div class="src">${esc(m.brand)} · <button class="btn sec sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mc="${m.id}">Ranglar: ${(m.colors || []).length}</button> <button class="btn ${m.img ? "sec" : "gold"} sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mimg="${m.id}">${m.img ? "Rasm ✓" : "+ Rasm"}</button></div></td><td class="src">${esc(m.mems.join(", "))}</td>
       <td class="n"><input class="inp sm" type="number" data-mk="${m.id}" value="${m.market}"></td>
       <td class="n"><input class="inp sm" style="width:80px" type="number" data-ms="${m.id}" value="${m.step}"></td>
       <td class="n">${uzs(toUzs(m.market * (100 - S.settings.discPct) / 100))}</td>
@@ -1108,6 +1166,7 @@ function renderSettings() {
         try { await updateDoc(doc(db, "models", m.id), {colors}); m.colors = colors; closeModal(); rows(); toast("Ranglar saqlandi"); } catch (e) { toast(errText(e), true); }
       };
     });
+    document.querySelectorAll("[data-mimg]").forEach(b => b.onclick = () => modelImgModal(S.models.find(x => x.id === b.dataset.mimg), rows));
     document.querySelectorAll("[data-ma]").forEach(b => b.onclick = async () => {
       const m = S.models.find(x => x.id === b.dataset.ma), v = m.active === false;
       try { await updateDoc(doc(db, "models", m.id), {active: v}); m.active = v; rows(); toast(v ? "Model ko'rsatiladi" : "Model ilovada yashirildi"); } catch (e) { toast(errText(e), true); }
