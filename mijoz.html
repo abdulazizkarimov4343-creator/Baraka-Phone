@@ -257,7 +257,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-1";
+const APP_VERSION = "2026.10.15-2";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -445,7 +445,7 @@ const QS = [
 ];
 const SUMMARY = QS.length;
 const NONE = "none";   // "Hozircha telefon tanlamayman"
-function freshW() { return {step: 0, q: 0, hist: [], brand: null, modelId: null, mem: null, color: "", power: null, lock: null, screen: null, body: null, batt: 100, cyc: null, bio: null, cam: null, repair: null, box: null, mq: "", stockId: null, q2: "", pay: "nasiya", months: 6, name: "", phone: "", branchId: "", note: "", done: null, saving: false}; }
+function freshW() { return {step: 0, q: 0, hist: [], brand: null, modelId: null, mem: null, color: "", power: null, lock: null, screen: null, body: null, batt: 100, cyc: null, bio: null, cam: null, repair: null, box: null, mq: "", stockId: null, q2: "", pay: "nasiya", months: 6, name: "", phone: "", note: "", done: null, saving: false}; }
 let W = freshW();
 const curModel = () => S.models.find(m => m.id === W.modelId);
 const GENERIC_COLORS = ["Qora", "Oq", "Kumush", "Kulrang", "Oltin", "Ko'k", "Yashil", "Binafsha", "Pushti", "Qizil"];
@@ -555,7 +555,6 @@ function planHtml(diff) {
 }
 function formHtml() {
   const s = ourStock(), c = clientCalc(), diff = diffUzs(), p = needPlan() ? plan(diff, W.months) : null;
-  if (!W.branchId) W.branchId = s?.branchId || (S.branches.length === 1 ? S.branches[0].id : "");
   return `<button class="qback" data-act="prev">← Orqaga</button>` + hero("✓", "Ariza qoldiring", "Sotuvchimiz qo'ng'iroq qilib, tafsilotlarni kelishib oladi") + `
   <div class="kv" style="margin-top:0">
     <div><div class="k">Siz topshirasiz</div><div class="v" style="font-size:16px">${esc(curModel().name)} ${esc(W.mem)}</div><div class="k">${uzs(c.uzs)}</div></div>
@@ -565,7 +564,6 @@ function formHtml() {
   <h3>Bog'lanish uchun</h3>
   <div class="field"><label for="fName">Ismingiz *</label><input class="inp" id="fName" autocomplete="name" maxlength="60" value="${esc(W.name)}"></div>
   <div class="field"><label for="fPhone">Telefon raqamingiz *</label><input class="inp" id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="90 123 45 67" maxlength="20" value="${esc(W.phone)}"></div>
-  ${S.branches.length > 1 ? `<div class="field"><label for="fBranch">Qaysi filialga borasiz? *</label><select class="inp" id="fBranch"><option value="">Tanlang</option>${S.branches.map(b => `<option value="${esc(b.id)}" ${W.branchId === b.id ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>` : ""}
   <div class="field"><label for="fNote">Izoh (ixtiyoriy)</label><textarea class="inp" id="fNote" maxlength="500" placeholder="Masalan: qachon qo'ng'iroq qilish qulay">${esc(W.note)}</textarea></div>
   <div id="saveErr" class="err hidden"></div>`;
 }
@@ -602,7 +600,6 @@ async function saveAriza() {
   W.name = W.name.trim(); W.note = W.note.trim();
   if (W.name.length < 2) return fail("Ismingizni yozing");
   if (!phoneOk()) return fail("Telefon raqamini to'liq yozing, masalan 90 123 45 67");
-  if (S.branches.length > 1 && !W.branchId) return fail("Qaysi filialga borishingizni tanlang");
   const c = clientCalc(), m = curModel(), st = ourStock();
   if (!c || c.rejected) return;
   W.saving = true; renderAction();
@@ -615,7 +612,8 @@ async function saveAriza() {
     }
     const diff = st ? toUzs(st.sellUsd) - c.uzs : 0, p = st && needPlan() ? plan(diff, W.months) : null;
     const ref = doc(collection(db, "arizalar")), no = ref.id.slice(0, 6).toUpperCase();
-    const branchId = W.branchId || st?.branchId || "";
+    // Ariza tanlangan telefon turgan filialga boradi; telefon tanlanmasa — barcha filiallarga ko'rinadi
+    const branchId = st?.branchId || "";
     await setDoc(ref, {
       status: "yangi", no, branchId,
       client: {name: W.name.slice(0, 60), phone: normPhone(W.phone)}, note: W.note.slice(0, 500),
@@ -650,7 +648,7 @@ document.addEventListener("click", e => {
     W.step++; renderWizard(); window.scrollTo(0, 0); return;
   }
   if (a === "new") { W = freshW(); renderWizard(); window.scrollTo(0, 0); return; }
-  if (t.dataset.stock) { W.stockId = t.dataset.stock === W.stockId ? null : t.dataset.stock; W.branchId = ""; renderStockGrid(); renderCompare(); return refreshNext(); }
+  if (t.dataset.stock) { W.stockId = t.dataset.stock === W.stockId ? null : t.dataset.stock; renderStockGrid(); renderCompare(); return refreshNext(); }
   if (t.dataset.pay) { W.pay = t.dataset.pay; return renderWizard(); }
 });
 document.addEventListener("input", e => {
@@ -664,7 +662,6 @@ document.addEventListener("input", e => {
   if (id === "fPhone") { W.phone = t.value; t.classList.remove("err"); }
   if (id === "fNote") W.note = t.value;
 });
-document.addEventListener("change", e => { if (e.target.id === "fBranch") W.branchId = e.target.value; });
 document.addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
   const map = {colorTxt: "colorOk", battN: "battOk", cycN: "cycOk"};
