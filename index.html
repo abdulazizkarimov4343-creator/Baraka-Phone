@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="qrcode.min.js"></script>
 <style>
 :root{
   --bg:#F3F5F9; --surface:#fff; --surface2:#F5F7FB; --ink:#141C2E; --muted:#5F6B82; --line:#DCE2EC;
@@ -113,6 +114,14 @@ details summary{cursor:pointer;color:var(--g);font-weight:600;margin-top:10px;fo
 .toast.show{opacity:1;transform:translateX(-50%)}
 .toast.bad{background:var(--bad);border-bottom-color:#fff}
 .loading{color:var(--muted);padding:20px}
+.qrwrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.qrwrap .qr{width:168px;height:168px;flex:none;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff}
+.qrwrap .qr img,.qrwrap .qr svg{display:block;width:100%;height:100%}
+.qrwrap .lnk{flex:1;min-width:220px}
+.qrwrap .lnk code{display:block;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;word-break:break-all;margin:6px 0 10px}
+.nav .badge{margin-left:auto}
+.card.new{border-color:var(--yLine);box-shadow:inset 4px 0 0 var(--y)}
+a.btn{text-decoration:none}
 .showpw{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);margin:-4px 0 12px;cursor:pointer}
 .prog{height:8px;border-radius:999px;background:var(--line);overflow:hidden;margin:10px 0}
 .prog i{display:block;height:100%;background:var(--y)}
@@ -193,6 +202,7 @@ details summary{cursor:pointer;color:var(--g);font-weight:600;margin-top:10px;fo
     <button class="nav" data-tab="dash"><span class="ic">▤</span>Hisobot</button>
     <button class="nav" data-tab="stock"><span class="ic">▣</span>Ombor</button>
     <button class="nav" data-tab="deals"><span class="ic">⇄</span>Shartnomalar</button>
+    <button class="nav" data-tab="arizalar"><span class="ic">✉</span>Mijoz arizalari <span class="badge gold hidden" id="arzCnt"></span></button>
     <button class="nav" data-tab="nasiya"><span class="ic">₪</span>Nasiya to'lovlari</button>
     <button class="nav" data-tab="staff"><span class="ic">☺</span>Xodimlar</button>
     <button class="nav" data-tab="branches"><span class="ic">⌂</span>Filiallar</button>
@@ -225,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.14-6";
+const APP_VERSION = "2026.10.15-1";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -301,17 +311,19 @@ function calcTradein(m, mem, a, s) {
 }
 
 /* ================= STATE ================= */
-const S = {me: null, tab: "dash", branchFilter: "all", period: "30", stockFilter: "sotuvda", dealFilter: "all", nasiyaFilter: "overdue",
-           branches: [], settings: null, models: [], profiles: [], stock: [], deals: [], sales: [], loaded: false};
+const S = {me: null, tab: "dash", branchFilter: "all", period: "30", stockFilter: "sotuvda", dealFilter: "all", nasiyaFilter: "overdue", arzFilter: "yangi",
+           branches: [], settings: null, models: [], profiles: [], stock: [], deals: [], sales: [], arizalar: [], arzOk: true, loaded: false};
 const bName = id => S.branches.find(b => b.id === id)?.name || "—";
 const pName = id => S.profiles.find(p => p.id === id)?.fullName || "—";
 const inBranch = x => S.branchFilter === "all" || x.branchId === S.branchFilter;
 const listDocs = snap => snap.docs.map(d => ({id: d.id, ...d.data()}));
 
 async function loadAll() {
-  const [b, st, m, p, sk, d, sa] = await Promise.all([
+  const [b, st, m, p, sk, d, sa, az] = await Promise.all([
     getDocs(collection(db, "branches")), getDoc(doc(db, "settings", "main")), getDocs(collection(db, "models")),
-    getDocs(collection(db, "profiles")), getDocs(collection(db, "stock")), getDocs(collection(db, "deals")), getDocs(collection(db, "sales"))]);
+    getDocs(collection(db, "profiles")), getDocs(collection(db, "stock")), getDocs(collection(db, "deals")), getDocs(collection(db, "sales")),
+    // Mijoz arizalari — Firebase qoidalari hali yangilanmagan bo'lsa, panel baribir ochiladi
+    getDocs(collection(db, "arizalar")).catch(e => { console.warn("arizalar", e); return null; })]);
   S.branches = listDocs(b).sort((x, y) => (toDate(x.createdAt) || 0) - (toDate(y.createdAt) || 0));
   S.settings = st.exists() ? st.data() : structuredClone(DEF_SETTINGS);
   S.models = listDocs(m).sort((x, y) => (x.sort || 0) - (y.sort || 0));
@@ -319,8 +331,10 @@ async function loadAll() {
   S.stock = listDocs(sk).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0));
   S.deals = listDocs(d).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0));
   S.sales = listDocs(sa).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0));
+  S.arzOk = !!az; S.arizalar = az ? listDocs(az).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0)) : [];
   S.loaded = true;
   renderBranchFilter();
+  updArzBadge();
   syncCatalog();
 }
 // Sotuvchilar boshqa filiallardagi telefonlarni ko'rishi uchun qisqa ro'yxat (settings/catalog)
@@ -464,7 +478,7 @@ $("#refreshBtn").addEventListener("click", async () => { $("#refreshBtn").disabl
 $("#branchFilter").addEventListener("change", e => { S.branchFilter = e.target.value; go(S.tab); });
 
 /* ================= NAV ================= */
-const TITLES = {dash: "Hisobot", stock: "Ombor", deals: "Shartnomalar va sotuvlar", nasiya: "Nasiya to'lovlari", staff: "Xodimlar", branches: "Filiallar", settings: "Sozlamalar"};
+const TITLES = {dash: "Hisobot", stock: "Ombor", deals: "Shartnomalar va sotuvlar", arizalar: "Mijoz arizalari", nasiya: "Nasiya to'lovlari", staff: "Xodimlar", branches: "Filiallar", settings: "Sozlamalar"};
 function renderBranchFilter() {
   $("#branchFilter").innerHTML = `<option value="all">Barcha filiallar</option>` + S.branches.map(b => `<option value="${b.id}" ${S.branchFilter === b.id ? "selected" : ""}>${esc(b.name)}</option>`).join("");
 }
@@ -473,7 +487,7 @@ function go(tab) {
   document.querySelectorAll(".nav").forEach(n => n.classList.toggle("on", n.dataset.tab === tab));
   $("#pageTitle").textContent = TITLES[tab];
   $("#branchFilter").classList.toggle("hidden", ["staff", "branches", "settings"].includes(tab));
-  ({dash: renderDash, stock: renderStock, deals: renderDeals, nasiya: renderNasiya, staff: renderStaff, branches: renderBranches, settings: renderSettings})[tab]();
+  ({dash: renderDash, stock: renderStock, deals: renderDeals, arizalar: renderArizalar, nasiya: renderNasiya, staff: renderStaff, branches: renderBranches, settings: renderSettings})[tab]();
 }
 document.querySelectorAll(".nav").forEach(n => n.addEventListener("click", () => go(n.dataset.tab)));
 
@@ -784,6 +798,101 @@ function renderNasiya() {
   };
   document.querySelectorAll("[data-pay]").forEach(b => b.onclick = () => mark(b.dataset.pay, true));
   document.querySelectorAll("[data-unpay]").forEach(b => b.onclick = async () => { if (await confirmBox("To'lov belgisini bekor qilasizmi?", "Bekor qilish")) mark(b.dataset.unpay, false); });
+}
+
+/* ================= MIJOZ ARIZALARI =================
+   Mijozlar mijoz.html sahifasida (login va parolsiz) telefonini baholab ariza qoldiradi. */
+const ARZ_ST = {yangi: ["Yangi", "gold"], aloqa: ["Bog'lanildi", ""], yakunlandi: ["Yakunlandi", "ok"], bekor: ["Bekor qilindi", "grey"]};
+const mijozUrl = () => new URL("mijoz.html", location.href.split(/[?#]/)[0]).href;
+const fmtPhone = p => { const d = digits(p); return d.length === 12 ? `+${d.slice(0, 3)} ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8, 10)} ${d.slice(10)}` : d ? "+" + d : ""; };
+function updArzBadge() { const n = S.arizalar.filter(a => a.status === "yangi").length, e = $("#arzCnt"); e.textContent = n; e.classList.toggle("hidden", !n); }
+function arzAnswers(x) {
+  const a = x.device?.answers || {}, pts = S.settings?.pts || {}, lab = k => (pts[k] || []).find(o => o.v === a[k])?.label || "—";
+  const rows = [["Yoqiladimi", a.power === "no" ? "Yo'q" : "Ha"], ["iCloud / Google", a.lock === "on" ? "Bog'langan" : "Chiqilgan"]];
+  if (a.power !== "no") rows.push(["Ekran", lab("screen")], ["Korpus", lab("body")], ["Batareya", (a.batt ?? "—") + "%" + (a.cyc != null ? `, ${a.cyc} sikl` : "")],
+    ["Face ID / Touch ID", lab("bio")], ["Kamera", lab("cam")], ["Ta'mir", lab("repair")], ["Qutisi", a.box === "no" ? "Yo'q" : "Bor"]);
+  return `<div class="tw" style="margin-top:8px"><table><tbody>${rows.map(r => `<tr><td>${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join("")}</tbody></table></div>`;
+}
+function arzCard(x) {
+  const [stL, stC] = ARZ_ST[x.status] || [x.status || "—", "grey"], d = x.device || {}, tel = digits(x.client?.phone);
+  const pay = !x.ourModel ? "Faqat telefonini topshiradi" : x.diffUzs <= 0 ? `Mijozga qaytariladi: ${uzs(-x.diffUzs)}` : x.payType === "nasiya" ? `Nasiya: ${uzs(x.monthlyUzs)} × ${x.months} oy` : `Naqd qo'shib to'laydi: ${uzs(x.diffUzs)}`;
+  return `<div class="card ${x.status === "yangi" ? "new" : ""}">
+  <div class="card-h"><div><span class="badge ${stC}">${esc(stL)}</span> <b>${esc(x.client?.name)}</b> <a class="src" href="tel:+${esc(tel)}">${esc(fmtPhone(tel))}</a></div>
+    <span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)} · ${esc(bName(x.branchId))}</span></div>
+  <div class="grid4">
+    <div><div class="k">Topshiradi</div><div class="v">${esc(d.name)} ${esc(d.mem)}</div><div class="src">${esc(d.color || "")}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""}</div></div>
+    <div><div class="k">Taxminiy baho</div><div class="v">${uzs(x.deviceUzs)}</div></div>
+    <div><div class="k">Olmoqchi</div><div class="v">${x.ourModel ? esc(x.ourModel) : "—"}</div>${x.ourModel ? `<div class="src">${uzs(x.ourUzs)}</div>` : ""}</div>
+    <div><div class="k">To'lov</div><div class="v" style="white-space:normal">${esc(pay)}</div></div>
+  </div>
+  ${x.note ? `<div class="note" style="margin-bottom:0"><b>Izoh:</b> ${esc(x.note)}</div>` : ""}
+  ${x.updatedByName ? `<div class="src" style="margin-top:8px">Oxirgi o'zgartirish: ${esc(x.updatedByName)}, ${fdt(x.updatedAt)}</div>` : ""}
+  <details><summary>Mijoz javoblari</summary>${arzAnswers(x)}</details>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+    ${Object.entries(ARZ_ST).filter(([k]) => k !== x.status && k !== "yangi").map(([k, [l]]) => `<button class="btn ${k === "yakunlandi" ? "pri" : "sec"} sm" data-arz="${x.id}|${k}">${esc(l)}</button>`).join("")}
+    ${x.status !== "yangi" ? `<button class="btn sec sm" data-arz="${x.id}|yangi">Yangi deb belgilash</button>` : ""}
+    <button class="btn bad sm" data-arzdel="${x.id}" style="margin-left:auto">O'chirish</button>
+  </div></div>`;
+}
+function qrMatrix(text) { const q = qrcode(0, "M"); q.addData(text); q.make(); return q; }
+function qrSvg(text) {
+  const q = qrMatrix(text), n = q.getModuleCount(); let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="-2 -2 ${n + 4} ${n + 4}" shape-rendering="crispEdges" role="img" aria-label="Mijoz sahifasi QR-kodi"><rect x="-2" y="-2" width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#00297D"/></svg>`;
+}
+// Do'konga osib qo'yish uchun plakat: logo, sarlavha, QR-kod va havola
+function qrPoster(text) {
+  const W = 1240, H = 1754, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d"), q = qrMatrix(text), n = q.getModuleCount();
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#00297D"; g.fillRect(0, 0, W, 34); g.fillStyle = "#E8B921"; g.fillRect(0, 34, W, 12);
+  const logo = document.querySelector(".side img");
+  if (logo && logo.naturalWidth) { const lh = 150, lw = logo.naturalWidth * lh / logo.naturalHeight; g.drawImage(logo, (W - lw) / 2, 110, lw, lh); }
+  g.textAlign = "center"; g.fillStyle = "#00297D"; g.font = "700 74px Poppins, sans-serif";
+  g.fillText("Eski telefoningizni", W / 2, 400); g.fillText("yangisiga almashtiring", W / 2, 490);
+  g.fillStyle = "#5F6B82"; g.font = "500 40px 'Golos Text', sans-serif";
+  g.fillText("QR-kodni skanerlang va telefoningiz narxini bilib oling", W / 2, 575);
+  const size = 760, x0 = (W - size) / 2, y0 = 650, cell = size / (n + 4);
+  g.fillStyle = "#E8B921"; g.fillRect(x0 - 24, y0 - 24, size + 48, size + 48);
+  g.fillStyle = "#fff"; g.fillRect(x0, y0, size, size);
+  g.fillStyle = "#00297D";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) g.fillRect(Math.floor(x0 + (c + 2) * cell), Math.floor(y0 + (r + 2) * cell), Math.ceil(cell), Math.ceil(cell));
+  g.fillStyle = "#141C2E"; g.font = "600 44px 'Golos Text', sans-serif";
+  g.fillText("Login va parol kerak emas", W / 2, y0 + size + 120);
+  g.fillStyle = "#5F6B82"; g.font = "400 30px 'Golos Text', sans-serif"; g.fillText(text, W / 2, y0 + size + 180);
+  g.fillStyle = "#00297D"; g.fillRect(0, H - 34, W, 34);
+  return cv.toDataURL("image/png");
+}
+function renderArizalar() {
+  const url = mijozUrl(), all = S.arizalar.filter(inBranch), cnt = k => k === "all" ? all.length : all.filter(a => a.status === k).length;
+  const items = S.arzFilter === "all" ? all : all.filter(a => a.status === S.arzFilter);
+  $("#page").innerHTML = `
+  <div class="panel"><h3 style="margin-top:0">Mijozlar uchun sahifa</h3><div class="qrwrap"><div class="qr">${qrSvg(url)}</div>
+    <div class="lnk"><div class="src">Mijoz shu havola yoki QR-kod orqali login va parolsiz kiradi: telefonini baholaydi, yangi telefon tanlaydi va ariza qoldiradi. Arizalar shu yerda va sotuvchi ilovasida ko'rinadi.</div>
+    <code>${esc(url)}</code>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn gold sm" id="qrPng">QR-kodni yuklab olish (PNG)</button><button class="btn sec sm" id="qrPrint">Chop etish</button><button class="btn sec sm" id="qrCopy">Havolani nusxalash</button><a class="btn sec sm" href="${esc(url)}" target="_blank" rel="noopener">Sahifani ochish</a></div></div></div></div>
+  ${S.arzOk ? "" : `<div class="err">Arizalarni o'qib bo'lmadi: Firebase ruxsat qoidalari hali yangilanmagan. Repozitoriydagi FIREBASE_QOIDALARI.md faylidagi ko'rsatmani bajaring.</div>`}
+  <div class="chips">${[["yangi", "Yangi"], ["aloqa", "Bog'lanildi"], ["yakunlandi", "Yakunlandi"], ["bekor", "Bekor qilindi"], ["all", "Hammasi"]].map(([k, l]) => `<button class="chip ${S.arzFilter === k ? "on" : ""}" data-af="${k}">${l} · ${cnt(k)}</button>`).join("")}</div>
+  ${items.length ? items.map(arzCard).join("") : `<div class="panel empty">Bu bo'limda ariza yo'q.</div>`}`;
+  document.querySelectorAll("[data-af]").forEach(b => b.onclick = () => { S.arzFilter = b.dataset.af; renderArizalar(); });
+  $("#qrCopy").onclick = async () => { try { await navigator.clipboard.writeText(url); toast("Havola nusxalandi"); } catch { prompt("Havolani nusxalang:", url); } };
+  $("#qrPng").onclick = () => { const a = document.createElement("a"); a.href = qrPoster(url); a.download = "baraka-mijoz-qr.png"; document.body.appendChild(a); a.click(); a.remove(); };
+  $("#qrPrint").onclick = () => {
+    const w = window.open("", "_blank"); if (!w) return toast("Brauzer yangi oynani ochishga ruxsat bermadi", true);
+    w.document.write(`<!doctype html><title>Baraka — QR-kod</title><style>@page{size:A4;margin:0}html,body{margin:0}img{display:block;width:100%;height:auto}</style><img src="${qrPoster(url)}" onload="setTimeout(()=>print(),200)">`);
+    w.document.close();
+  };
+  document.querySelectorAll("[data-arz]").forEach(b => b.onclick = async () => {
+    const [id, st] = b.dataset.arz.split("|"), x = S.arizalar.find(a => a.id === id); b.disabled = true;
+    try {
+      await updateDoc(doc(db, "arizalar", id), {status: st, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
+      Object.assign(x, {status: st, updatedAt: new Date(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""}); updArzBadge(); renderArizalar(); toast("Ariza holati: " + ARZ_ST[st][0]);
+    } catch (e) { b.disabled = false; toast(errText(e), true); }
+  });
+  document.querySelectorAll("[data-arzdel]").forEach(b => b.onclick = async () => {
+    if (!await confirmBox("Arizani butunlay o'chirasizmi?", "O'chirish")) return;
+    try { await deleteDoc(doc(db, "arizalar", b.dataset.arzdel)); S.arizalar = S.arizalar.filter(a => a.id !== b.dataset.arzdel); updArzBadge(); renderArizalar(); toast("Ariza o'chirildi"); } catch (e) { toast(errText(e), true); }
+  });
 }
 
 /* ================= STAFF ================= */
