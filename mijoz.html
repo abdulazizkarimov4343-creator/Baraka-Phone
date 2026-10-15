@@ -285,7 +285,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-4";
+const APP_VERSION = "2026.10.15-5";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -503,7 +503,20 @@ const PHONE_SVG = `<svg viewBox="0 0 120 200" aria-hidden="true"><rect x="22" y=
 const APPLE_IMGS = new Set(["iphone-11", "iphone-11-pro", "iphone-11-pro-max", "iphone-12", "iphone-12-mini", "iphone-12-pro", "iphone-12-pro-max", "iphone-13", "iphone-13-mini", "iphone-13-pro", "iphone-13-pro-max", "iphone-14", "iphone-14-plus", "iphone-14-pro", "iphone-14-pro-max", "iphone-15", "iphone-15-plus", "iphone-15-pro", "iphone-15-pro-max", "iphone-16", "iphone-16-plus", "iphone-16-pro", "iphone-16-pro-max", "iphone-16e", "iphone-17", "iphone-17-pro", "iphone-17-pro-max", "iphone-17e", "iphone-18-pro", "iphone-18-pro-max", "iphone-air", "iphone-se-2022", "iphone-xr", "iphone-xs", "iphone-xs-max"]);
 const slugOf = n => String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const appleImg = n => APPLE_IMGS.has(slugOf(n)) ? `img/iphone/${slugOf(n)}.jpg` : "";
-const imgOf = s => { const src = modelOfStock(s)?.img || appleImg(s.modelName); return src ? `<img src="${esc(src)}" alt="${esc(s.modelName)}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(window.PHONE_SVG))">` : PHONE_SVG; };
+// Har bir rang uchun alohida rasm (Apple Store) — img/iphone/<model>/<rang>.jpg
+const APPLE_COLOR_IMGS = {"iphone-11":["black","green","productred","purple","white","yellow"],"iphone-11-pro":["gold","silver"],"iphone-11-pro-max":["gold","silver"],"iphone-12":["black","blue","green","productred","purple","white"],"iphone-12-mini":["black","blue","green","productred","purple","white"],"iphone-12-pro":["gold","graphite","silver"],"iphone-12-pro-max":["gold","graphite","silver"],"iphone-13":["blue","green","midnight","pink","productred","starlight"],"iphone-13-mini":["blue","green","midnight","pink","starlight"],"iphone-13-pro":["alpinegreen","gold","graphite","sierrablue","silver"],"iphone-13-pro-max":["alpinegreen","gold","graphite","sierrablue","silver"],"iphone-14":["blue","midnight","productred","purple","starlight","yellow"],"iphone-14-plus":["blue","midnight","productred","purple","starlight","yellow"],"iphone-14-pro":["deeppurple","gold","silver","spaceblack"],"iphone-14-pro-max":["deeppurple","gold","silver","spaceblack"],"iphone-15":["black","blue","green","pink","yellow"],"iphone-15-plus":["black","blue","green","pink","yellow"],"iphone-15-pro":["blacktitanium","bluetitanium","naturaltitanium","whitetitanium"],"iphone-15-pro-max":["blacktitanium","bluetitanium","naturaltitanium","whitetitanium"],"iphone-16":["black","pink","teal","ultramarine","white"],"iphone-16-plus":["black","pink","teal","ultramarine","white"],"iphone-16-pro":["blacktitanium","deserttitanium","naturaltitanium","whitetitanium"],"iphone-16-pro-max":["blacktitanium","deserttitanium","naturaltitanium","whitetitanium"],"iphone-16e":["black","white"],"iphone-17":["black","lavender","mistblue","sage","white"],"iphone-17-pro":["cosmicorange","deepblue","silver"],"iphone-17-pro-max":["cosmicorange","deepblue","silver"],"iphone-18-pro":["black","burgundy","silver"],"iphone-18-pro-max":["black","burgundy","silver"],"iphone-air":["cloudwhite","lightgold","skyblue","spaceblack"],"iphone-se-2022":["midnight","productred","starlight"],"iphone-xr":["black","blue","coral","productred","white","yellow"],"iphone-xs":["gold","silver"],"iphone-xs-max":["gold","silver"]};
+const cSlug = c => String(c || "").toLowerCase().replace(/\(product\)/g, "product").replace(/[^a-z0-9]/g, "");
+function colorImg(s) {
+  const ms = slugOf(s.modelName), list = APPLE_COLOR_IMGS[ms]; if (!list || !s.color) return "";
+  let c = cSlug(s.color);
+  if (!list.includes(c)) {   // rang o'zbekcha yozilgan bo'lsa (masalan "oq") — modelning ranglaridan mosini topamiz
+    const uz = String(s.color).trim().toLowerCase(), hit = (modelOfStock(s)?.colors || []).find(x => COLOR_UZ[x.toLowerCase()] === uz);
+    if (hit) c = cSlug(hit);
+  }
+  if (c && !list.includes(c)) c = list.find(x => x.startsWith(c) || c.startsWith(x) || x === "product" + c) || "";
+  return c ? `img/iphone/${ms}/${c}.jpg` : "";
+}
+const imgOf = s => { const src = colorImg(s) || modelOfStock(s)?.img || appleImg(s.modelName); return src ? `<img src="${esc(src)}" alt="${esc(s.modelName)}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(window.PHONE_SVG))">` : PHONE_SVG; };
 window.PHONE_SVG = PHONE_SVG;
 
 function canNext() {
