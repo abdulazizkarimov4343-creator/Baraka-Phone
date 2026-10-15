@@ -1,0 +1,165 @@
+rules_version = '2';
+
+// ============================================================================
+//  Baraka Trade-in — Firestore xavfsizlik qoidalari (TO'LIQ)
+//  Firebase konsoli → Firestore Database → Rules: eski matnni TO'LIQ o'chirib,
+//  shu faylni joylang va "Publish" bosing.
+//
+//  Asosiy tamoyil: hamma narsa yopiq, faqat kerakli eshiklar ochiladi.
+//   • Mijoz (login yo'q)   — narxlar, modellar, vitrina; faqat yangi ariza yuboradi.
+//   • Sotuvchi             — faqat O'Z filiali ombori, shartnomalari, sotuvlari.
+//   • Admin                — hammasi.
+//   • Tizim egasi (setup)  — shartnomani o'chirish, sotilgan telefonni o'chirish,
+//                            o'z profilini faqat o'zi o'zgartiradi.
+//  Firebase'da ro'yxatdan o'tgan, lekin "profiles"da yo'q odam hech narsa ko'rmaydi.
+// ============================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Yordamchi funksiyalar ----------
+    function signedIn()   { return request.auth != null; }
+    function profPath()   { return /databases/$(database)/documents/profiles/$(request.auth.uid); }
+    function me()         { return get(profPath()).data; }
+    function isStaff()    { return signedIn() && exists(profPath()) && me().active == true; }
+    function isAdmin()    { return isStaff() && me().role == 'admin'; }
+    function myBranch()   { return me().branchId; }
+    function setupPath()  { return /databases/$(database)/documents/meta/setup; }
+    function setupDone()  { return exists(setupPath()); }
+    function isOwner()    { return isAdmin() && setupDone() && get(setupPath()).data.by == request.auth.uid; }
+    function newData()    { return request.resource.data; }
+    function changed()    { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function str(v, max)  { return v is string && v.size() <= max; }
+    function num(v)       { return v is int || v is float; }
+
+    // ---------- Tizimni birinchi sozlash ----------
+    // Faqat bir marta: meta/setup hali yo'q bo'lsa, birinchi admin o'zini yozadi.
+    match /meta/{id} {
+      allow read: if id == 'setup';
+      allow create: if id == 'setup' && signedIn() && !setupDone()
+                    && newData().keys().hasOnly(['by', 'at'])
+                    && newData().by == request.auth.uid
+                    && exists(profPath()) == false
+                    && getAfter(profPath()).data.role == 'admin';
+      allow update, delete: if false;
+    }
+
+    // ---------- Xodimlar ----------
+    match /profiles/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // Birinchi sozlashda o'zini admin qilish (meta/setup bilan bitta paketda)
+      allow create: if (isAdmin() && uid != request.auth.uid)
+                    || (signedIn() && uid == request.auth.uid && !setupDone()
+                        && getAfter(setupPath()).data.by == request.auth.uid);
+      // Tizim egasining profiliga faqat egasining o'zi tegadi
+      allow update: if isAdmin() && (!setupDone() || get(setupPath()).data.by != uid || isOwner())
+                    && (uid != request.auth.uid || !changed().hasAny(['role', 'active', 'branchId']) || isOwner());
+      allow delete: if isAdmin() && uid != request.auth.uid
+                    && (!setupDone() || get(setupPath()).data.by != uid);
+    }
+
+    // ---------- Sozlamalar va modellar (mijoz sahifasi o'qiydi) ----------
+    match /settings/{id} {
+      allow read: if id in ['main', 'catalog'] || isStaff();
+      allow write: if isAdmin();
+    }
+    match /models/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /branches/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Ombor ----------
+    match /stock/{id} {
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
+      allow create: if isAdmin()
+                    || (isStaff() && newData().branchId == myBranch() && newData().createdBy == request.auth.uid
+                        && newData().status in ['tayyorlanmoqda', 'sotuvda']);
+      // Sotuvchi faqat o'z filialidagi "Sotuvda" telefonni "Sotilgan" qiladi — narx, tannarx va boshqa maydonlarga tegolmaydi
+      allow update: if isAdmin()
+                    || (isStaff() && resource.data.branchId == myBranch()
+                        && resource.data.status == 'sotuvda' && newData().status == 'sotilgan'
+                        && changed().hasOnly(['status', 'sold', 'updatedAt']));
+      allow delete: if isAdmin() && (resource.data.status != 'sotilgan' || isOwner());
+    }
+
+    // ---------- Shartnomalar (trade-in) va sotuvlar ----------
+    match /deals/{id} {
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
+      allow create: if isAdmin() || (isStaff() && newData().branchId == myBranch() && newData().sellerId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isOwner();
+    }
+    match /sales/{id} {
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
+      allow create: if isAdmin() || (isStaff() && newData().branchId == myBranch() && newData().sellerId == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isOwner();
+    }
+
+    // ---------- Telefon rasmlari ----------
+    match /photos/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && newData().createdBy == request.auth.uid
+                    && (isAdmin() || newData().branchId == myBranch())
+                    && str(newData().data, 400000);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Mijoz arizalari ----------
+    match /arizalar/{id} {
+      // Mijoz (login yo'q) faqat yangi ariza yuboradi. Har bir maydon turi va hajmi tekshiriladi,
+      // shunda bazaga zararli matn yoki ulkan ma'lumot yozib bo'lmaydi.
+      allow create: if id.matches('^[A-Za-z0-9]{20}$')
+                    && newData().keys().hasOnly(['status', 'no', 'branchId', 'client', 'note', 'device',
+                         'deviceUzs', 'stockId', 'ourModel', 'ourUzs', 'diffUzs', 'payType', 'months',
+                         'monthlyUzs', 'totalUzs', 'kurs', 'createdAt'])
+                    && newData().status == 'yangi'
+                    && newData().createdAt == request.time
+                    && str(newData().no, 10)
+                    && str(newData().branchId, 40)
+                    && newData().client is map
+                    && newData().client.keys().hasOnly(['name', 'phone'])
+                    && newData().client.name is string
+                    && newData().client.name.size() >= 2
+                    && newData().client.name.size() <= 60
+                    && newData().client.phone is string
+                    && newData().client.phone.matches('^[0-9]{9,15}$')
+                    && str(newData().get('note', ''), 500)
+                    && newData().device is map
+                    && newData().device.keys().hasOnly(['modelId', 'brand', 'name', 'mem', 'color', 'answers', 'calc', 'askUzs', 'manual'])
+                    && str(newData().device.get('name', ''), 60)
+                    && str(newData().device.get('mem', ''), 20)
+                    && str(newData().device.get('color', ''), 40)
+                    && str(newData().device.get('brand', ''), 30)
+                    && str(newData().device.get('modelId', ''), 40)
+                    && (!('answers' in newData().device) || (newData().device.answers is map && newData().device.answers.size() <= 20))
+                    && (!('calc' in newData().device) || (newData().device.calc is map && newData().device.calc.size() <= 10))
+                    && num(newData().deviceUzs)
+                    && str(newData().get('stockId', ''), 40)
+                    && str(newData().get('ourModel', ''), 80)
+                    && num(newData().get('ourUzs', 0))
+                    && num(newData().get('diffUzs', 0))
+                    && newData().get('payType', '') in ['', 'naqd', 'nasiya']
+                    && newData().get('months', 0) is int
+                    && newData().get('months', 0) >= 0 && newData().get('months', 0) <= 36
+                    && num(newData().get('monthlyUzs', 0))
+                    && num(newData().get('totalUzs', 0))
+                    && num(newData().get('kurs', 0));
+      // Xodimlar: admin hammasini, sotuvchi o'z filiali va filiali tanlanmagan ("") arizalarni ko'radi
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId in [myBranch(), '']);
+      allow update: if isAdmin()
+                    || (isStaff() && resource.data.branchId in [myBranch(), '']
+                        && !changed().hasAny(['client', 'no', 'createdAt', 'branchId']));
+      allow delete: if isAdmin();
+    }
+
+    // Boshqa hamma narsa — yopiq
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

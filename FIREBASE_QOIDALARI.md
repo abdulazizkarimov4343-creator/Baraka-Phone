@@ -1,65 +1,53 @@
-# Mijoz sahifasi uchun Firebase qoidalari
+# Baraka Trade-in — bazani himoyalash
 
-`mijoz.html` sahifasiga mijozlar **login va parolsiz** kiradi. Sahifa ishlashi uchun
-Firebase'dagi ruxsat qoidalariga bir nechta qator qo'shish kerak. Busiz mijoz sahifasi
-"Sahifani yuklab bo'lmadi" deb chiqadi, arizalar bo'limi esa bo'sh turadi.
+Bazaning asosiy himoyasi bu **Firestore qoidalari**. To'liq qoidalar `firestore.rules` faylida.
+Ular Google'ning rasmiy emulyatorida 103 ta sinovdan o'tgan: oddiy ish jarayonlari ham, buzishga urinishlar ham tekshirilgan.
 
-## Mijozga nima ochiladi
+## 1-qadam. Qoidalarni joylash (majburiy, 3 daqiqa)
 
-| Ma'lumot | Mijoz | Xodim (login bilan) |
+1. [Firebase konsoli → Firestore → Rules](https://console.firebase.google.com/project/baraka-32b53/firestore/rules) ni oching.
+2. Eski matnni **to'liq o'chiring** (Ctrl+A → Delete).
+3. GitHub'dagi `firestore.rules` faylini oching, hammasini nusxalab, shu yerga joylang.
+4. **Publish** tugmasini bosing.
+5. Tekshiring: admin panel, sotuvchi ilovasi va mijoz sahifasi odatdagidek ochilishi kerak.
+
+Agar biror joy "Ruxsat yo'q" deb qolsa, Rules sahifasidagi **History** orqali eski qoidalarga bir bosishda qaytish mumkin.
+
+### Qoidalar nimani taqiqlaydi
+
+| Kim | Nima qila oladi | Nima qila olmaydi |
 |---|---|---|
-| `settings/main` — narx sozlamalari, dollar kursi | o'qiydi | o'zgarishsiz |
-| `settings/catalog` — sotuvdagi telefonlar (model, xotira, rang, sotuv narxi) | o'qiydi | o'zgarishsiz |
-| `models` — modellar va bozor narxlari | o'qiydi | o'zgarishsiz |
-| `arizalar` — mijoz arizalari | faqat **yangi ariza yuboradi**, o'qiy olmaydi | o'qiydi, holatini o'zgartiradi |
-| Shartnomalar, ombor (tannarx, IMEI), xodimlar, rasmlar | **yopiq** | o'zgarishsiz |
+| Mehmon (login yo'q) | Narxlar, modellar, vitrina ko'rish, ariza yuborish | Xodimlar, ombor, shartnoma, pasport, rasm, boshqalarning arizalarini ko'rish; narxni o'zgartirish; soxta yoki zararli maydonli ariza |
+| Ro'yxatdan o'tgan begona | Hech narsa | O'zini admin yoki xodim qilish |
+| Faol emas (bo'shatilgan) xodim | Hech narsa | O'zini qayta faollashtirish |
+| Sotuvchi | O'z filiali ombori, shartnomalari, sotuvlari, arizalari | Boshqa filialni ko'rish; o'zini admin qilish; narx yoki tannarxni o'zgartirish; telefon o'chirish; shartnomani tahrirlash |
+| Admin | Hammasi | Tizim egasini o'chirish yoki bloklash; shartnomani o'chirish |
+| Tizim egasi (birinchi admin) | Hammasi | — |
 
-`settings/catalog`da tannarx va IMEI yo'q. Bu ro'yxatni admin panel o'zi yangilab turadi.
+Qo'shimcha himoya:
+- Ariza maydonlari va ularning hajmi tekshiriladi, shuning uchun admin panelga zararli kod (XSS) kiritib bo'lmaydi.
+- Ariza vaqtini soxtalashtirib bo'lmaydi.
 
-## Qanday qo'shiladi
+## 2-qadam. API kalitini faqat saytga bog'lash (tavsiya, 3 daqiqa)
 
-1. [Firebase konsoli](https://console.firebase.google.com/project/baraka-32b53/firestore/rules) → **Firestore Database** → **Rules** bo'limini oching.
-2. `match /databases/{database}/documents {` qatoridan keyin quyidagi blokni qo'shing.
-   Mavjud qoidalarni **o'chirmang**.
-3. **Publish** tugmasini bosing.
+1. [Google Cloud → Credentials](https://console.cloud.google.com/apis/credentials?project=baraka-32b53) ni oching. **Browser key** (yoki "API key 1") ni bosing.
+2. **Application restrictions** → **Websites** ni tanlang va qo'shing:
+   - `https://abdulazizkarimov4343-creator.github.io/*`
+   - `https://baraka-32b53.firebaseapp.com/*`
+3. **Save** tugmasini bosing.
 
-```
-    // ===== Mijoz sahifasi (mijoz.html) — login talab qilinmaydi =====
-    match /settings/{id} {
-      allow read: if id in ['main', 'catalog'];
-    }
-    match /models/{id} {
-      allow read: if true;
-    }
-    match /arizalar/{id} {
-      // Mijoz faqat yangi ariza yuboradi; maydonlar va hajmi tekshiriladi
-      allow create: if request.resource.data.keys().hasOnly(['status', 'no', 'branchId', 'client', 'note', 'device',
-                         'deviceUzs', 'stockId', 'ourModel', 'ourUzs', 'diffUzs', 'payType', 'months',
-                         'monthlyUzs', 'totalUzs', 'kurs', 'createdAt'])
-                    && request.resource.data.status == 'yangi'
-                    && request.resource.data.createdAt == request.time
-                    && request.resource.data.branchId is string
-                    && request.resource.data.client.keys().hasOnly(['name', 'phone'])
-                    && request.resource.data.client.name is string
-                    && request.resource.data.client.name.size() >= 2
-                    && request.resource.data.client.name.size() <= 60
-                    && request.resource.data.client.phone is string
-                    && request.resource.data.client.phone.matches('^[0-9]{9,15}$')
-                    && request.resource.data.note is string
-                    && request.resource.data.note.size() <= 500;
-      // Arizalarni faqat faol xodimlar ko'radi va boshqaradi
-      allow read, update, delete: if request.auth != null
-                    && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.active == true;
-    }
-```
+## 3-qadam. Parollar
 
-## Tekshirish
+- **Admin paroli:** kamida 12 belgi. Unda harf, raqam va belgi bo'lsin, boshqa saytlarda ishlatilmagan bo'lsin.
+- **Ishdan ketgan xodim:** darhol **Xodimlar → Faol emas** qiling. Shu zahoti kirishi yopiladi.
+- **Parolni bilib olishdi deb gumon qilsangiz:** Xodimlar bo'limida parolni almashtiring.
 
-1. Brauzerning yashirin (inkognito) oynasida `mijoz.html` ni oching. Brendlar ro'yxati chiqishi kerak.
-2. Telefonni baholab, sinov uchun ariza yuboring.
-3. Admin panel → **Mijoz arizalari** bo'limida ariza ko'rinadi. Sotuvchi ilovasida esa ariza **Arizalar** bo'limida chiqadi (mijoz tanlagan filial sotuvchilariga).
+## 4-qadam (ixtiyoriy). Soxta arizalardan himoya — App Check
 
-## Eslatma
+Ariza yuborish hammaga ochiq, shuning uchun bot ko'plab soxta ariza tashlashi mumkin. Bu ma'lumot o'g'irlash emas, lekin halaqit beradi.
+Bunday holat bo'lsa, App Check (reCAPTCHA) yoqiladi. Buning uchun reCAPTCHA kaliti kerak. Shunday vaziyat yuz bersa, ayting, birga ulaymiz.
 
-- Sotuvdagi telefonlar ro'yxati (`settings/catalog`) admin panel ochilganda yangilanadi. Sotuvchi telefonni sotgandan keyin ham u admin panel qayta ochilguncha mijozga ko'rinib turishi mumkin. Ariza baribir sotuvchi orqali tasdiqlanadi.
-- Ariza yuborish ochiq bo'lgani uchun soxta arizalar kelishi mumkin. Ko'payib ketsa, Firebase **App Check** yoqiladi.
+## 5-qadam (ixtiyoriy). Zaxira nusxa
+
+Firestore'da kunlik avtomatik backup bor, lekin u faqat **Blaze** (pullik, oyiga bir necha sent) tarifida ishlaydi:
+Firestore → **Disaster recovery** → **Backups** → kunlik jadval.
