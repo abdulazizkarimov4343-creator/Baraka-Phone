@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-2";
+const APP_VERSION = "2026.10.15-3";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -1086,9 +1086,13 @@ function shrinkImage(file) {
     img.src = url;
   });
 }
+// Mijoz sahifasidagi standart rasmlar (img/iphone/) — admin rasm qo'ymasa shular chiqadi
+const APPLE_IMGS = new Set(["iphone-11", "iphone-11-pro", "iphone-11-pro-max", "iphone-12", "iphone-12-mini", "iphone-12-pro", "iphone-12-pro-max", "iphone-13", "iphone-13-mini", "iphone-13-pro", "iphone-13-pro-max", "iphone-14", "iphone-14-plus", "iphone-14-pro", "iphone-14-pro-max", "iphone-15", "iphone-15-plus", "iphone-15-pro", "iphone-15-pro-max", "iphone-16", "iphone-16-plus", "iphone-16-pro", "iphone-16-pro-max", "iphone-16e", "iphone-17", "iphone-17-pro", "iphone-17-pro-max", "iphone-17e", "iphone-18-pro", "iphone-18-pro-max", "iphone-air", "iphone-se-2022", "iphone-xr", "iphone-xs", "iphone-xs-max"]);
+const slugOf = n => String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const appleImg = n => APPLE_IMGS.has(slugOf(n)) ? `img/iphone/${slugOf(n)}.jpg` : "";
 function modelImgModal(m, done) {
   let src = m.img || "";
-  const prev = () => { $("#miPrev").innerHTML = src ? `<img src="${esc(src)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain" onerror="this.parentNode.innerHTML='<span class=src>Rasm ochilmadi — havolani tekshiring</span>'">` : `<span class="src">Rasm yo'q</span>`; };
+  const prev = () => { $("#miPrev").innerHTML = !src && appleImg(m.name) ? `<div style="text-align:center"><img src="${appleImg(m.name)}" alt="" style="max-width:100%;max-height:200px;object-fit:contain"><div class="src">Hozir Apple'ning rasmiy rasmi ko'rsatiladi. O'zgartirish uchun havola yoki fayl qo'ying.</div></div>` : src ? `<img src="${esc(src)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain" onerror="this.parentNode.innerHTML='<span class=src>Rasm ochilmadi — havolani tekshiring</span>'">` : `<span class="src">Rasm yo'q</span>`; };
   modal(`<h2>${esc(m.name)} — rasm</h2><p class="sub">Oq fondagi rasm mijoz sahifasidagi telefon kartochkasida chiqadi.</p>
   <div id="miPrev" style="display:grid;place-items:center;min-height:160px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px"></div>
   <div class="field"><label>Rasm havolasi</label><input class="inp" id="miUrl" placeholder="https://… (rasmga o'ng tugma → «Копировать адрес изображения»)" value="${esc(src.startsWith("data:") ? "" : src)}"></div>
@@ -1146,7 +1150,7 @@ function renderSettings() {
   const rows = () => {
     const q = $("#mSearch").value.trim().toLowerCase();
     $("#mRows").innerHTML = S.models.filter(m => !q || (m.brand + " " + m.name).toLowerCase().includes(q)).map(m => `<tr>
-      <td><b>${esc(m.name)}</b><div class="src">${esc(m.brand)} · <button class="btn sec sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mc="${m.id}">Ranglar: ${(m.colors || []).length}</button> <button class="btn ${m.img ? "sec" : "gold"} sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mimg="${m.id}">${m.img ? "Rasm ✓" : "+ Rasm"}</button></div></td><td class="src">${esc(m.mems.join(", "))}</td>
+      <td><b>${esc(m.name)}</b><div class="src">${esc(m.brand)} · <button class="btn sec sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mc="${m.id}">Ranglar: ${(m.colors || []).length}</button> <button class="btn ${m.img || appleImg(m.name) ? "sec" : "gold"} sm" style="min-height:26px;padding:2px 8px;font-size:12px" data-mimg="${m.id}">${m.img ? "Rasm ✓" : appleImg(m.name) ? "Rasm: Apple" : "+ Rasm"}</button></div></td><td class="src">${esc(m.mems.join(", "))}</td>
       <td class="n"><input class="inp sm" type="number" data-mk="${m.id}" value="${m.market}"></td>
       <td class="n"><input class="inp sm" style="width:80px" type="number" data-ms="${m.id}" value="${m.step}"></td>
       <td class="n">${uzs(toUzs(m.market * (100 - S.settings.discPct) / 100))}</td>

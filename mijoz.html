@@ -240,7 +240,7 @@ select.inp{appearance:auto}
 .pcard{display:flex;flex-direction:column;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:10px;gap:8px;box-shadow:0 1px 3px rgba(0,41,125,.05);transition:border-color .15s,box-shadow .15s}
 .pcard:hover{box-shadow:0 6px 18px rgba(0,41,125,.1)}
 .pcard.on{border-color:var(--g);box-shadow:0 0 0 2px var(--g)}
-.pcard .pimg{display:grid;place-items:center;background:#fff;border-radius:12px;aspect-ratio:1/1;overflow:hidden}
+.pcard .pimg{display:grid;place-items:center;background:#fff;border-radius:12px;aspect-ratio:4/3;overflow:hidden;padding:6px}
 .pcard .pimg img{width:100%;height:100%;object-fit:contain}
 .pcard .pimg svg{width:46%;height:auto}
 .pbody{display:flex;flex-direction:column;gap:4px;padding:0 4px 4px}
@@ -285,7 +285,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-3";
+const APP_VERSION = "2026.10.15-4";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -499,7 +499,11 @@ const phoneOk = () => W.phone.length === 9;
 const gradeOf = letter => S.settings.grades[Math.max(0, "ABCD".indexOf(letter))]?.label || letter || "";
 const modelOfStock = s => S.allModels.find(m => m.name === s.modelName && (!s.brand || m.brand === s.brand));
 const PHONE_SVG = `<svg viewBox="0 0 120 200" aria-hidden="true"><rect x="22" y="8" width="76" height="184" rx="18" fill="#E7ECF5" stroke="#C5D2EC" stroke-width="3"/><rect x="46" y="18" width="28" height="7" rx="3.5" fill="#C5D2EC"/></svg>`;
-const imgOf = s => { const src = modelOfStock(s)?.img; return src ? `<img src="${esc(src)}" alt="${esc(s.modelName)}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(window.PHONE_SVG))">` : PHONE_SVG; };
+// Apple'ning rasmiy rasmlari (support.apple.com) — img/iphone/; admin qo'ygan rasm ustun turadi
+const APPLE_IMGS = new Set(["iphone-11", "iphone-11-pro", "iphone-11-pro-max", "iphone-12", "iphone-12-mini", "iphone-12-pro", "iphone-12-pro-max", "iphone-13", "iphone-13-mini", "iphone-13-pro", "iphone-13-pro-max", "iphone-14", "iphone-14-plus", "iphone-14-pro", "iphone-14-pro-max", "iphone-15", "iphone-15-plus", "iphone-15-pro", "iphone-15-pro-max", "iphone-16", "iphone-16-plus", "iphone-16-pro", "iphone-16-pro-max", "iphone-16e", "iphone-17", "iphone-17-pro", "iphone-17-pro-max", "iphone-17e", "iphone-18-pro", "iphone-18-pro-max", "iphone-air", "iphone-se-2022", "iphone-xr", "iphone-xs", "iphone-xs-max"]);
+const slugOf = n => String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const appleImg = n => APPLE_IMGS.has(slugOf(n)) ? `img/iphone/${slugOf(n)}.jpg` : "";
+const imgOf = s => { const src = modelOfStock(s)?.img || appleImg(s.modelName); return src ? `<img src="${esc(src)}" alt="${esc(s.modelName)}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(window.PHONE_SVG))">` : PHONE_SVG; };
 window.PHONE_SVG = PHONE_SVG;
 
 function canNext() {
