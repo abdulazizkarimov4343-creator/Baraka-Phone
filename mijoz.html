@@ -266,6 +266,9 @@ select.inp{appearance:auto}
 .warn{background:var(--warnSoft);border:1px solid #F1D08A;color:#8A5A00;border-radius:12px;padding:12px 14px;font-weight:600;margin:14px 0}
 .wwarn{position:relative;z-index:1;margin-top:12px;background:rgba(232,185,33,.18);border:1px solid rgba(232,185,33,.7);color:#FFE08A;border-radius:10px;padding:9px 12px;font-weight:600;font-size:14px}
 .cycu{font-size:16px!important;font-weight:600!important}
+.ask label{font-size:17px;font-weight:700;color:var(--g)}
+.ask .phin .inp{border-radius:10px 0 0 10px;font:700 22px Poppins,sans-serif}
+.ask .phin span{border-radius:0 10px 10px 0;border-left:0;border-right:1px solid var(--line)}
 .hbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
 @media (max-width:640px){.hbtns{grid-template-columns:1fr}}
 .phin{display:flex;align-items:stretch}
@@ -294,7 +297,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-9";
+const APP_VERSION = "2026.10.15-10";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -543,7 +546,7 @@ const RU = {
   "Siz topshirasiz": "Вы сдаёте", "Siz olasiz": "Вы получаете", "Oylik to'lov, {n} oy": "Ежемесячный платёж, {n} мес.",
   "Bog'lanish uchun": "Контакты", "Ismingiz *": "Ваше имя *", "Telefon raqamingiz *": "Ваш номер телефона *",
   "Izoh (ixtiyoriy)": "Комментарий (необязательно)", "Masalan: qachon qo'ng'iroq qilish qulay": "Например: когда удобно позвонить",
-  "Telefonni sotish uchun murojaat": "Обращение на продажу телефона", "Murojaat qoldirish": "Оставить обращение", "Telefonimni sotish": "Продать мой телефон",
+  "Telefonni sotish uchun murojaat": "Обращение на продажу телефона", "Murojaat qoldirish": "Оставить обращение", "Telefonimni sotish": "Продать мой телефон", "Necha pulga sotmoqchisiz? (so'mda)": "За сколько хотите продать? (в сумах)", "Narxni kiriting": "Введите цену", "so'm": "сум", "Siz so'ragan narx": "Ваша цена",
   "Telefoningizni sotish": "Продажа телефона", "Ismingiz va raqamingizni qoldiring — adminlarimiz siz bilan bog'lanadi": "Оставьте имя и номер — наши администраторы свяжутся с вами",
   "Taxminiy baho": "Примерная оценка", "Murojaatni yuborish": "Отправить обращение",
   "Yangi telefon tanlash": "Выбрать новый телефон", "To'lovga o'tish": "Перейти к оплате", "Ariza qoldirish": "Оставить заявку",
@@ -605,7 +608,7 @@ const QS = [
 ];
 const SUMMARY = QS.length;
 // started — mijoz vitrinadan o'tdi; pre — telefon boshida tanlangan; sell — faqat sotish uchun murojaat
-function freshW() { return {started: false, pre: false, sell: false, step: 0, q: 0, hist: [], modelId: null, mem: null, color: "", screen: null, body: null, batt: 100, cyc: null, bio: null, repair: null, box: null, mq: "", stockId: null, q2: "", months: 6, name: "", phone: "", note: "", done: null, saving: false}; }
+function freshW() { return {started: false, pre: false, sell: false, step: 0, q: 0, hist: [], modelId: null, mem: null, color: "", screen: null, body: null, batt: 100, cyc: null, bio: null, repair: null, box: null, mq: "", stockId: null, q2: "", months: 6, ask: 0, name: "", phone: "", note: "", done: null, saving: false}; }
 let W = freshW();
 const curModel = () => S.models.find(m => m.id === W.modelId);
 const GENERIC_COLORS = ["Qora", "Oq", "Kumush", "Kulrang", "Oltin", "Ko'k", "Yashil", "Binafsha", "Pushti", "Qizil"];
@@ -639,7 +642,7 @@ const imgOf = s => { const src = colorImg(s) || modelOfStock(s)?.img || appleImg
 window.PHONE_SVG = PHONE_SVG;
 
 function canNext() {
-  if (W.step === 0) return W.q === SUMMARY && !!clientCalc();
+  if (W.step === 0) return W.q === SUMMARY && !!clientCalc() && (!W.sell || W.ask > 0);
   if (W.step === 1) return !!ourStock();
   if (W.step === 3) return !W.saving;
   return true;
@@ -725,8 +728,9 @@ function summaryHtml() {
   <div class="field"><span class="lbl">${t("Telefoningiz")}</span><div class="ro">${esc(m.name)} ${esc(W.mem)}${W.color ? " · " + esc(colorUz(W.color)) : ""}</div></div>
   <button class="qback" data-act="redo">${t("Javoblarni qaytadan ko'rib chiqish")}</button>
   <div class="extra"><div><span class="t">${t("Qutisi")}</span><span class="pill">${t(W.box === "no" ? "Yo'q" : "Bor")}</span></div><div><span class="t">${t("Holati")}</span><span class="pill">${esc(t(c.grade))}</span></div><div><span class="t">${t("Batareya")}</span><span class="pill">${W.batt}%${hasCycles(m) && W.cyc != null ? " · " + t("{n} sikl", {n: W.cyc}) : ""}</span></div></div>
-  <div class="price"><div class="price-top"><div class="ic">$</div><div><small>${t("Taxminiy narx")}</small><b>${t("Telefoningiz qiymati")}</b></div></div><div class="total"><span>${t("Jami:")}</span><b>${sum(c.uzs)}</b></div></div>
-  ${warnHtml()}`;
+  ${W.sell ? `<div class="field ask"><label for="fAsk">${t("Necha pulga sotmoqchisiz? (so'mda)")}</label><div class="phin"><input class="inp" id="fAsk" inputmode="numeric" placeholder="${esc(t("Narxni kiriting"))}" value="${W.ask ? sum(W.ask) : ""}"><span>${t("so'm")}</span></div></div>`
+    : `<div class="price"><div class="price-top"><div class="ic">$</div><div><small>${t("Taxminiy narx")}</small><b>${t("Telefoningiz qiymati")}</b></div></div><div class="total"><span>${t("Jami:")}</span><b>${sum(c.uzs)}</b></div></div>
+  ${warnHtml()}`}`;
 }
 function renderCompare() {
   const s = ourStock(), el = $("#compare"); if (!el) return; if (!s) { el.innerHTML = ""; return; }
@@ -752,7 +756,7 @@ function formHtml() {
   const s = ourStock(), c = clientCalc(), diff = diffUzs(), p = needPlan() ? plan(diff, W.months) : null;
   const top = W.sell
     ? hero("$", t("Telefoningizni sotish"), t("Ismingiz va raqamingizni qoldiring — adminlarimiz siz bilan bog'lanadi")) +
-      `<div class="kv" style="margin-top:0"><div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(curModel().name)} ${esc(W.mem)}</div></div><div><div class="k">${t("Taxminiy baho")}</div><div class="v" style="font-size:16px">${uzs(c.uzs)}</div></div></div>${warnHtml()}`
+      `<div class="kv" style="margin-top:0"><div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(curModel().name)} ${esc(W.mem)}</div></div><div><div class="k">${t("Siz so'ragan narx")}</div><div class="v" style="font-size:16px">${uzs(W.ask)}</div></div></div>`
     : hero("✓", t("Ariza qoldiring"), t("Sotuvchimiz qo'ng'iroq qilib, tafsilotlarni kelishib oladi")) + `
   <div class="kv" style="margin-top:0">
     <div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(curModel().name)} ${esc(W.mem)}</div><div class="k">${uzs(c.uzs)}</div></div>
@@ -784,7 +788,7 @@ function renderDone() {
   const d = W.done;
   $("#page").innerHTML = `<div style="text-align:center;padding:20px 0"><div class="done-ic">✓</div><h2 style="color:var(--g);margin:0">${t(d.sell ? "Murojaatingiz qabul qilindi" : "Arizangiz qabul qilindi")}</h2>
   <p class="hint" style="font-size:17px">${t("Ariza raqami:")} <b>№${esc(d.no)}</b></p><p class="hint" style="font-size:16px">${d.sell ? `<b>${t("Siz bilan adminlarimiz bog'lanishadi.")}</b>` : esc(t("Sotuvchimiz tez orada {p} raqamiga qo'ng'iroq qiladi.", {p: d.phone}))}</p></div>
-  <div class="kv"><div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(d.gave)}</div></div><div><div class="k">${t(d.sell ? "Taxminiy baho" : "Siz olasiz")}</div><div class="v" style="font-size:16px">${d.sell ? uzs(d.bigValue) : esc(d.took)}</div></div>
+  <div class="kv"><div><div class="k">${t("Siz topshirasiz")}</div><div class="v" style="font-size:16px">${esc(d.gave)}</div></div><div><div class="k">${t(d.sell ? "Siz so'ragan narx" : "Siz olasiz")}</div><div class="v" style="font-size:16px">${d.sell ? uzs(d.bigValue) : esc(d.took)}</div></div>
   ${d.sell ? "" : `<div class="big"><div class="k">${esc(d.bigLabel)}</div><div class="v">${uzs(d.bigValue)}</div></div>`}</div>
   <div class="note"><b>${t("Do'konga kelishdan oldin iCloud akkauntingizdan chiqing")}</b> ${t("— \"Telefonni topish\" o'chirilgan bo'lsin. Telefoningiz, qutisi va hujjatlarini olib keling, nasiya uchun pasport kerak bo'ladi. Narx telefon ko'zdan kechirilgach aniqlanadi.")}</div>
   <button class="btn sec block" style="margin-top:20px" data-act="new">${t("Bosh sahifaga qaytish")}</button>`;
@@ -813,13 +817,14 @@ async function saveAriza() {
       // Telefon tanlanmagan (sotish uchun murojaat) — ariza barcha filiallarga ko'rinadi
       status: "yangi", no, branchId: st?.branchId || "",
       client: {name: W.name.slice(0, 60), phone}, note: W.note.slice(0, 500),
-      device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, answers: answers(),
+      // Sotishda mijoz so'ragan narx device ichida saqlanadi (Firebase qoidalarini o'zgartirmaslik uchun)
+      device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, answers: answers(), ...(st ? {} : {askUzs: W.ask}),
                calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter || "D"}},
       deviceUzs: c.uzs, stockId: st ? st.id : "", ourModel: st ? `${st.modelName} ${st.mem || ""}`.trim() : "", ourUzs: st ? toUzs(st.sellUsd) : 0,
       diffUzs: diff, payType: p ? "nasiya" : "", months: p ? W.months : 0, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0,
       kurs: S.settings.kurs, createdAt: serverTimestamp()});
     W.done = {no, sell: !st, phone: fmtPhone(phone), gave: `${m.name} ${W.mem}`, took: st ? `${st.modelName} ${st.mem || ""}`.trim() : "",
-              bigLabel: p ? t("Oylik to'lov, {n} oy", {n: W.months}) : t("Sizga qaytariladi"), bigValue: !st ? c.uzs : p ? p.monthly : Math.abs(diff)};
+              bigLabel: p ? t("Oylik to'lov, {n} oy", {n: W.months}) : t("Sizga qaytariladi"), bigValue: !st ? W.ask : p ? p.monthly : Math.abs(diff)};
     W.saving = false; renderWizard(); window.scrollTo(0, 0);
   } catch (e) { W.saving = false; renderAction(); fail(errText(e)); }
 }
@@ -858,6 +863,7 @@ document.addEventListener("input", e => {
   if (id === "battR") { const v = +el.value; W.batt = v; $("#battN").value = v; el.style.setProperty("--p", ((v - 50) / 50 * 100).toFixed(1) + "%"); return; }
   if (id === "battN") { if (el.value === "") return; const v = Math.max(1, Math.min(100, Math.round(+el.value))); W.batt = v; const r = $("#battR"); r.value = Math.max(50, v); r.style.setProperty("--p", ((Math.max(50, v) - 50) / 50 * 100).toFixed(1) + "%"); return; }
   if (id === "mRange") { W.months = +el.value; el.style.setProperty("--p", rngPct(W.months)); $("#mRangeVal").textContent = t("{n} oy", {n: W.months}); $("#planBox").innerHTML = planHtml(diffUzs()); return; }
+  if (id === "fAsk") { W.ask = Math.min(999999999, +digits(el.value) || 0); el.value = W.ask ? sum(W.ask) : ""; return refreshNext(); }
   if (id === "fName") W.name = el.value;
   if (id === "fPhone") {
     // +998 doim turadi: to'liq raqam qo'yilsa ham boshidagi 998 olib tashlanadi

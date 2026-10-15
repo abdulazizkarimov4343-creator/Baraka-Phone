@@ -867,7 +867,7 @@ function arzCard(x) {
     <span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)} · ${esc(bName(x.branchId))}</span></div>
   <div class="grid4">
     <div><div class="k">Topshiradi</div><div class="v">${esc(d.name)} ${esc(d.mem)}</div><div class="src">${esc(d.color || "")}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""}</div></div>
-    <div><div class="k">Taxminiy baho</div><div class="v">${uzs(x.deviceUzs)}</div></div>
+    <div><div class="k">Taxminiy baho</div><div class="v">${uzs(x.deviceUzs)}</div>${d.askUzs ? `<div class="src"><b>Mijoz narxi: ${uzs(d.askUzs)}</b></div>` : ""}</div>
     <div><div class="k">Olmoqchi</div><div class="v">${x.ourModel ? esc(x.ourModel) : "—"}</div>${x.ourModel ? `<div class="src">${uzs(x.ourUzs)}</div>` : ""}</div>
     <div><div class="k">To'lov</div><div class="v" style="white-space:normal">${esc(pay)}</div></div>
   </div>

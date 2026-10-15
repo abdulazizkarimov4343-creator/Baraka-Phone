@@ -851,7 +851,7 @@ function arzCard(x) {
   return `<div class="item" style="display:block${x.status === "yangi" ? ";border-left:5px solid var(--y)" : ""}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
     <div><span class="badge ${stC}">${esc(stL)}</span>${!x.ourModel ? ' <span class="badge bad">Sotish</span>' : ""} <b>${esc(x.client?.name)}</b></div><span class="src">№${esc(x.no || x.id.slice(0, 6).toUpperCase())} · ${fdt(x.createdAt)}</span></div>
     <div style="margin-top:6px"><a href="tel:+${esc(tel)}" style="font-weight:700;color:var(--g);font-size:17px">${esc(fmtPhone(tel))}</a></div>
-    <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${uzs(x.deviceUzs)}</div>
+    <div class="src" style="margin-top:6px">Topshiradi: <b>${esc(d.name)} ${esc(d.mem)}</b>${d.color ? ", " + esc(d.color) : ""}${d.calc?.grade ? " · " + esc(d.calc.grade) : ""} — taxminan ${uzs(x.deviceUzs)}${d.askUzs ? ` · <b>mijoz narxi: ${uzs(d.askUzs)}</b>` : ""}</div>
     <div class="src">Olmoqchi: <b>${x.ourModel ? esc(x.ourModel) + " (" + uzs(x.ourUzs) + ")" : "tanlamagan"}</b> · ${esc(pay)}</div>
     ${x.note ? `<div class="note" style="margin:8px 0 0">Izoh: ${esc(x.note)}</div>` : ""}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
