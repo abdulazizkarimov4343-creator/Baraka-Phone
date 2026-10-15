@@ -246,7 +246,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-11";
+const APP_VERSION = "2026.10.15-12";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -963,9 +963,11 @@ function buyInfoHtml(x) {
     <br><button class="btn sec sm" style="margin-top:6px" data-bphotos="${x.id}">📷 Rasmlar (${b.photoCount || 6})</button></div>`;
 }
 function buyButtonsHtml(x) {
-  if (!isSellAriza(x) || x.status === "bekor") return "";
+  // Sotish murojaatida ham, almashtirish (trade-in) arizasida ham mijoz telefoni sotib olinadi
+  if (x.status === "bekor" || x.status === "yakunlandi") return "";
   if (!x.bought) return `<button class="btn green sm" style="flex:none" data-buy="${x.id}">✓ Sotib olindi</button>`;
-  if (!x.listed) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
+  // Almashtirishda telefon omborga trade-in shartnomasi orqali tushadi (ikki marta tushmasligi uchun)
+  if (!x.listed && isSellAriza(x)) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
   return "";
 }
 function shrinkPhoto(file) {
@@ -1053,7 +1055,7 @@ async function saveList(id, btn) {
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.buy) { BUY = {id: b.dataset.buy, price: 0, photos: [], saving: false}; return renderBuyModal(); }
+  if (b.dataset.buy) { const x = S.arizalar.find(a => a.id === b.dataset.buy); BUY = {id: b.dataset.buy, price: x?.manualUzs || x?.deviceUzs || 0, photos: [], saving: false}; return renderBuyModal(); }
   if (b.dataset.bphotos) return showBuyPhotos(b.dataset.bphotos);
   if (b.dataset.list) return renderListModal(S.arizalar.find(a => a.id === b.dataset.list));
   if (b.id === "bNo") { BUY = null; return closeModal(); }

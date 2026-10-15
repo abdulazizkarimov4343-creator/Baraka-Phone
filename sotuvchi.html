@@ -281,7 +281,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-8";
+const APP_VERSION = "2026.10.15-9";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -884,7 +884,7 @@ function arzCard(x) {
     ${x.note ? `<div class="note" style="margin:8px 0 0">Izoh: ${esc(x.note)}</div>` : ""}${buyInfoHtml(x)}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
       ${buyButtonsHtml(x)}
-      ${["yakunlandi", "bekor", "olindi", "sotuvda"].includes(x.status) ? "" : `<button class="btn ${isSellAriza(x) ? "sec" : "pri"} sm" data-arzgo="${x.id}">Trade-in'ni boshlash</button>`}
+      ${["yakunlandi", "bekor"].includes(x.status) || (isSellAriza(x) && ["olindi", "sotuvda"].includes(x.status)) ? "" : `<button class="btn ${isSellAriza(x) ? "sec" : "pri"} sm" data-arzgo="${x.id}">Trade-in'ni boshlash</button>`}
       ${x.status === "yangi" ? `<button class="btn sec sm" data-arz="${x.id}|aloqa">Bog'lanildi</button>` : ""}
       ${["olindi", "sotuvda"].includes(x.status) ? "" : x.status !== "bekor" && x.status !== "yakunlandi" ? `<button class="btn sec sm" style="color:var(--bad)" data-arz="${x.id}|bekor">Bekor qilish</button>` : `<button class="btn sec sm" data-arz="${x.id}|aloqa">Qayta ochish</button>`}
     </div></div>`;
@@ -926,9 +926,11 @@ function buyInfoHtml(x) {
     <br><button class="btn sec sm" style="margin-top:6px" data-bphotos="${x.id}">📷 Rasmlar (${b.photoCount || 6})</button></div>`;
 }
 function buyButtonsHtml(x) {
-  if (!isSellAriza(x) || x.status === "bekor") return "";
+  // Sotish murojaatida ham, almashtirish (trade-in) arizasida ham mijoz telefoni sotib olinadi
+  if (x.status === "bekor" || x.status === "yakunlandi") return "";
   if (!x.bought) return `<button class="btn green sm" style="flex:none" data-buy="${x.id}">✓ Sotib olindi</button>`;
-  if (!x.listed) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
+  // Almashtirishda telefon omborga trade-in shartnomasi orqali tushadi (ikki marta tushmasligi uchun)
+  if (!x.listed && isSellAriza(x)) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
   return "";
 }
 function shrinkPhoto(file) {
@@ -1016,7 +1018,7 @@ async function saveList(id, btn) {
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.buy) { BUY = {id: b.dataset.buy, price: 0, photos: [], saving: false}; return renderBuyModal(); }
+  if (b.dataset.buy) { const x = S.arizalar.find(a => a.id === b.dataset.buy); BUY = {id: b.dataset.buy, price: x?.manualUzs || x?.deviceUzs || 0, photos: [], saving: false}; return renderBuyModal(); }
   if (b.dataset.bphotos) return showBuyPhotos(b.dataset.bphotos);
   if (b.dataset.list) return renderListModal(S.arizalar.find(a => a.id === b.dataset.list));
   if (b.id === "bNo") { BUY = null; return closeModal(); }
@@ -1075,7 +1077,8 @@ function startFromAriza(x) {
   Object.assign(W, {brand: m.brand, modelId: m.id, mem: m.mems.includes(d.mem) ? d.mem : null, color: d.color || "",
     power: a.power ?? null, lock: a.lock ?? null, screen: a.screen ?? null, body: a.body ?? null, batt: a.batt ?? 100, cyc: a.cyc ?? null,
     bio: a.bio ?? null, cam: a.cam ?? null, repair: a.repair ?? null, box: a.box ?? null, arizaId: x.id, arizaNo: x.no || x.id.slice(0, 6).toUpperCase(),
-    manual: x.manualUzs ? {uzs: x.manualUzs, reason: x.manualReason || "Admin arizada o'zgartirgan"} : null});
+    // Telefon allaqachon sotib olingan bo'lsa — shartnoma o'sha narx bilan tuziladi
+    manual: x.bought?.priceUzs ? {uzs: x.bought.priceUzs, reason: "Sotib olingan narx"} : x.manualUzs ? {uzs: x.manualUzs, reason: x.manualReason || "Admin arizada o'zgartirgan"} : null});
   // Mijoz barcha savollarga javob bergan; xotira hajmi ro'yxatdan o'chirilgan bo'lsa — o'sha savoldan davom etadi
   W.q = W.mem ? SUMMARY : QS.findIndex(q => q.k === "mem");
   if (S.stock.some(s => s.id === x.stockId && s.status === "sotuvda")) W.stockId = x.stockId;
