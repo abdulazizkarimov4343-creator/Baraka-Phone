@@ -266,13 +266,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword,
          EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where,
-         writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+         writeBatch, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-4";
+const APP_VERSION = "2026.10.15-5";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -426,7 +426,7 @@ onAuthStateChanged(auth, async user => {
     S.me = {id: user.uid, ...p};
     $("#meName").textContent = p.fullName || "Xodim";
     show("app"); $("#page").innerHTML = `<div class="loading">Ma'lumotlar yuklanmoqda…</div>`;
-    await loadAll(); go(S.tab);
+    await loadAll(); go(S.tab); startArzLive();
   } catch (e) { await signOut(auth); loginError(errText(e)); }
 });
 function loginError(t) { show("login"); const e = $("#loginErr"); e.textContent = t; e.classList.remove("hidden"); }
@@ -859,6 +859,20 @@ function arzCard(x) {
       ${x.status === "yangi" ? `<button class="btn sec sm" data-arz="${x.id}|aloqa">Bog'lanildi</button>` : ""}
       ${x.status !== "bekor" && x.status !== "yakunlandi" ? `<button class="btn sec sm" style="color:var(--bad)" data-arz="${x.id}|bekor">Bekor qilish</button>` : `<button class="btn sec sm" data-arz="${x.id}|aloqa">Qayta ochish</button>`}
     </div></div>`;
+}
+/* Mijoz arizalari — jonli kuzatish (shu filial va filial tanlanmagan arizalar) */
+let arzLive = null;
+function startArzLive() {
+  if (arzLive) return;
+  let first = true;
+  arzLive = onSnapshot(query(collection(db, "arizalar"), where("branchId", "in", [S.me.branchId, ""])), snap => {
+    const fresh = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0));
+    const known = new Set(S.arizalar.map(a => a.id)), added = fresh.filter(a => !known.has(a.id));
+    S.arizalar = fresh; S.arzOk = true; updArzBadge();
+    if (S.tab === "arizalar" && !$("#modalRoot").innerHTML) renderArizalar();
+    if (!first && added.length) toast(added.length === 1 ? `Yangi ariza: ${added[0].client?.name || ""}` : `${added.length} ta yangi ariza`);
+    first = false;
+  }, e => console.warn("arizalar live", e));
 }
 function renderArizalar() {
   const cnt = k => k === "all" ? S.arizalar.length : S.arizalar.filter(a => a.status === k).length;

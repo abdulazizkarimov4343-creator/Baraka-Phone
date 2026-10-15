@@ -229,13 +229,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut,
          updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where,
-         writeBatch, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+         writeBatch, serverTimestamp, deleteField, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-6";
+const APP_VERSION = "2026.10.15-7";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -419,7 +419,7 @@ async function boot() {
         await ensureSeed(S.me);
         $("#meName").textContent = p.fullName || "Admin"; $("#meLogin").textContent = "+" + p.login;
         show("app"); $("#page").innerHTML = `<div class="loading">Ma'lumotlar yuklanmoqda…</div>`;
-        await loadAll(); go(S.tab);
+        await loadAll(); go(S.tab); startArzLive();
       } catch (e) { show("login"); const er = $("#loginErr"); er.textContent = errText(e); er.classList.remove("hidden"); }
     });
   } catch (e) {
@@ -908,6 +908,20 @@ function qrPoster(text) {
   g.fillStyle = "#5F6B82"; g.font = "400 30px 'Golos Text', sans-serif"; g.fillText(text, W / 2, y0 + size + 180);
   g.fillStyle = "#00297D"; g.fillRect(0, H - 34, W, 34);
   return cv.toDataURL("image/png");
+}
+/* Mijoz arizalari — jonli kuzatish: yangi ariza sahifani yangilamasdan ko'rinadi */
+let arzLive = null;
+function startArzLive() {
+  if (arzLive) return;
+  let first = true;
+  arzLive = onSnapshot(collection(db, "arizalar"), snap => {
+    const fresh = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((x, y) => (toDate(y.createdAt) || 0) - (toDate(x.createdAt) || 0));
+    const known = new Set(S.arizalar.map(a => a.id)), added = fresh.filter(a => !known.has(a.id));
+    S.arizalar = fresh; S.arzOk = true; updArzBadge();
+    if (S.tab === "arizalar" && !$("#modalRoot").innerHTML) renderArizalar();
+    if (!first && added.length) toast(added.length === 1 ? `Yangi ariza: ${added[0].client?.name || ""}` : `${added.length} ta yangi ariza`);
+    first = false;
+  }, e => console.warn("arizalar live", e));
 }
 function renderArizalar() {
   const url = mijozUrl(), all = S.arizalar.filter(inBranch), cnt = k => k === "all" ? all.length : all.filter(a => a.status === k).length;
