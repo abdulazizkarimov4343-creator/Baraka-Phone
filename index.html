@@ -155,6 +155,10 @@ a.btn{text-decoration:none}
   th,td{padding:8px 10px}
   .mbox{padding:18px}
 }
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
+.sgrid>div{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px}
+.sgrid .k{font-size:12px;color:var(--muted)}.sgrid b{display:block}
+.sgrid .hl{background:var(--g);border-color:var(--g);color:#fff}.sgrid .hl .k{color:rgba(255,255,255,.7)}.sgrid .hl b{color:var(--y)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:500px){.row2{grid-template-columns:1fr}}
 .imeires{display:flex;flex-direction:column;gap:8px;margin:-4px 0 14px}
@@ -250,7 +254,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-12";
+const APP_VERSION = "2026.10.15-13";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -970,9 +974,10 @@ function buyInfoHtml(x) {
 function buyButtonsHtml(x) {
   // Sotish murojaatida ham, almashtirish (trade-in) arizasida ham mijoz telefoni sotib olinadi
   if (x.status === "bekor" || x.status === "yakunlandi") return "";
-  if (!x.bought) return `<button class="btn green sm" style="flex:none" data-buy="${x.id}">✓ Sotib olindi</button>`;
-  // Almashtirishda telefon omborga trade-in shartnomasi orqali tushadi (ikki marta tushmasligi uchun)
-  if (!x.listed && isSellAriza(x)) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
+  if (!x.bought) return `<button class="btn green sm" style="flex:none" data-buy="${x.id}">✓ ${isSellAriza(x) ? "Sotib olindi" : "Mijoz telefoni sotib olindi"}</button>`;
+  // Almashtirishda: mijoz telefoni olingach — bizning telefon sotiladi (shartnoma shu yerda tuziladi)
+  if (!isSellAriza(x)) return x.dealId ? "" : `<button class="btn green sm" style="flex:none" data-sold="${x.id}">✓ Bizning telefon sotildi</button>`;
+  if (!x.listed) return `<button class="btn pri sm" data-list="${x.id}">Sotuvga chiqarildi</button>`;
   return "";
 }
 function shrinkPhoto(file) {
@@ -1071,6 +1076,77 @@ document.addEventListener("click", e => {
   if (b.id === "bOk") return saveBuy();
   if (b.id === "lOk") return saveList(b.dataset.id, b);
 });
+/* ---- Almashtirish arizasi: "Bizning telefon sotildi" — trade-in shartnomasini shu yerdan tuzish ----
+   Mijoz telefoni avval "sotib olingan" bo'ladi (narx, IMEI, pasport, rasmlar). Keyin bizning telefon
+   "Sotilgan"ga o'tadi, mijoz telefoni omborga "Tayyorlanmoqda" tushadi, shartnoma (nasiya jadvali bilan) tuziladi. */
+let SOLD = null;
+const bfUzs = u => Math.round((u || 0) * S.settings.kurs / 1000) * 1000;
+const bfMaxM = () => S.settings.tiers[S.settings.tiers.length - 1].to;
+const bfRate = m => (S.settings.tiers.find(t => m <= t.to) || S.settings.tiers[S.settings.tiers.length - 1]).rate;
+const bfPlan = (diff, m) => { const monthly = Math.ceil((diff + diff * bfRate(m) * m / 100) / m / 1000) * 1000; return {monthly, total: monthly * m}; };
+const bfIso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const bfAddM = (d, n) => { const x = new Date(d), day = x.getDate(); x.setDate(1); x.setMonth(x.getMonth() + n); x.setDate(Math.min(day, new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; };
+const bfSchedule = (p, m) => Array.from({length: m}, (_, i) => ({n: i + 1, due: bfIso(bfAddM(new Date(), i + 1)), amount: p.monthly, paid: false}));
+function renderSoldModal() {
+  const x = S.arizalar.find(a => a.id === SOLD.id), st = SOLD.stock, our = bfUzs(st.sellUsd), dev = x.bought.priceUzs, diff = our - dev;
+  const m = Math.min(SOLD.months, bfMaxM()), p = diff > 0 ? bfPlan(diff, m) : null;
+  modal(`<h2>Bizning telefon sotildi</h2><p class="src" style="margin:0 0 10px">${esc(x.client?.name || "")} · ${esc(fmtPhone(x.client?.phone))} · pasport ${esc(x.bought.passport || "—")}</p>
+  <div class="sgrid"><div><div class="k">Mijoz topshirdi</div><b>${esc(x.device?.name || "")} ${esc(x.device?.mem || "")}</b><div>${uzs(dev)}</div></div>
+    <div><div class="k">Mijoz oladi</div><b>${esc(st.modelName)} ${esc(st.mem || "")}</b><div>${uzs(our)}</div></div>
+    <div class="hl"><div class="k">${diff > 0 ? "Qolgan summa" : "Mijozga qaytariladi"}</div><b>${uzs(Math.abs(diff))}</b></div></div>
+  ${diff > 0 ? `<div class="field" style="margin-top:12px"><label for="sMonths">Nasiya muddati</label><select class="inp" id="sMonths">${Array.from({length: bfMaxM()}, (_, i) => i + 1).map(n => `<option value="${n}" ${n === m ? "selected" : ""}>${n} oy</option>`).join("")}</select></div>
+    <div class="sgrid"><div><div class="k">Oylik to'lov</div><b>${uzs(p.monthly)}</b></div><div><div class="k">Jami to'lov</div><b>${uzs(p.total)}</b></div></div>` : ""}
+  ${st.status !== "sotuvda" ? `<div class="err">Bu telefon omborda "Sotuvda" emas (hozir: ${esc(st.status || "—")}). Boshqa telefon tanlash uchun trade-in'ni sotuvchi ilovasida boshlang.</div>` : ""}
+  <div id="sErr" class="err hidden"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn sec" id="bNo">Bekor qilish</button><button class="btn pri" id="sOk" ${st.status !== "sotuvda" || SOLD.saving ? "disabled" : ""}>${SOLD.saving ? "Saqlanmoqda…" : "✓ Shartnomani tasdiqlash"}</button></div>`);
+}
+async function openSold(id) {
+  const x = S.arizalar.find(a => a.id === id);
+  try {
+    const sn = await getDoc(doc(db, "stock", x.stockId));
+    if (!sn.exists()) return toast("Mijoz tanlagan telefon omborda topilmadi", true);
+    SOLD = {id, stock: {id: sn.id, ...sn.data()}, months: x.months || 6, saving: false}; renderSoldModal();
+  } catch (e) { toast(errText(e), true); }
+}
+async function saveSold() {
+  const x = S.arizalar.find(a => a.id === SOLD.id), st = SOLD.stock, er = $("#sErr");
+  const kurs = S.settings.kurs, our = bfUzs(st.sellUsd), devUzs = x.bought.priceUzs, devUsd = Math.round(devUzs / kurs * 100) / 100, diff = our - devUzs;
+  const months = diff > 0 ? Math.min(SOLD.months, bfMaxM()) : 0, p = months ? bfPlan(diff, months) : null;
+  SOLD.saving = true; renderSoldModal();
+  try {
+    const fresh = await getDoc(doc(db, "stock", st.id));
+    if (!fresh.exists() || fresh.data().status !== "sotuvda") throw {message: "Telefon allaqachon sotilgan yoki ombordan olingan. Sahifani yangilang."};
+    const d = x.device || {}, a = d.answers || {}, branchId = st.branchId;
+    const dealRef = doc(collection(db, "deals")), newRef = doc(collection(db, "stock")), contractNo = dealRef.id.slice(0, 6).toUpperCase();
+    const client = {name: x.client?.name || `Shartnoma №${contractNo}`, phone: digits(x.client?.phone) || "000000000", passport: x.bought.passport || "", address: ""};
+    const b = writeBatch(db);
+    b.set(dealRef, {
+      branchId, sellerId: S.me.id, sellerName: S.me.fullName || "", client, contractNo,
+      device: {modelId: d.modelId || "", brand: d.brand || "Apple", name: d.name || "", mem: d.mem || "", color: d.color || "", imei: x.bought.imei || "", answers: a,
+               calc: d.calc || {}, manual: {uzs: devUzs, autoUzs: x.deviceUzs || devUzs, reason: "Sotib olingan narx", by: S.me.id, byName: S.me.fullName || ""}},
+      deviceUsd: devUsd, deviceUzs: devUzs, stockId: st.id, ourModel: `${st.modelName} ${st.mem || ""}`.trim(), ourUsd: st.sellUsd, ourUzs: our,
+      diffUzs: diff, months, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0, kurs, newStockId: newRef.id, photoCount: 6,
+      schedule: p ? bfSchedule(p, months) : [], createdAt: serverTimestamp()});
+    b.update(doc(db, "stock", st.id), {status: "sotilgan", sold: {kind: "deal", ref: dealRef.id, at: serverTimestamp(), clientName: client.name, priceUzs: our}, updatedAt: serverTimestamp()});
+    b.set(newRef, {branchId, modelName: d.name || "", brand: d.brand || "Apple", mem: d.mem || "", color: d.color || "", imei: x.bought.imei || "", grade: d.calc?.gradeLetter || "D",
+      battery: a.batt ?? null, cyc: a.cyc ?? null, box: a.box || "", cond: "bu", buyUsd: devUsd, sellUsd: Math.round(devUsd * 100 / (100 - S.settings.discPct)),
+      status: "tayyorlanmoqda", source: "trade-in", sourceDealId: dealRef.id, createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()});
+    await b.commit();
+    await updateDoc(doc(db, "arizalar", x.id), {status: "yakunlandi", dealId: dealRef.id, diffUzs: diff, payType: p ? "nasiya" : "", months, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
+    SOLD = null; closeModal(); toast("Shartnoma tuzildi"); await loadAll(); renderArizalar();
+  } catch (e) {
+    SOLD.saving = false; renderSoldModal();
+    const t = String(e?.code || "").includes("permission") ? "Ruxsat yo'q: boshqa filial telefoni bo'lsa, shartnomani admin panel orqali tuzing." : errText(e);
+    $("#sErr").textContent = t; $("#sErr").classList.remove("hidden");
+  }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.sold) return openSold(b.dataset.sold);
+  if (b.id === "sOk") return saveSold();
+  if (b.id === "bNo") SOLD = null;
+});
+document.addEventListener("change", e => { if (e.target.id === "sMonths" && SOLD) { SOLD.months = +e.target.value; renderSoldModal(); } });
 /* IMEI bo'yicha qidiruv: oxirgi raqamlar terilsa — telefonni sotgan mijoz (ism, raqam, pasport) */
 let IMEIQ = "";
 function imeiResHtml() {
