@@ -285,7 +285,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.15-5";
+const APP_VERSION = "2026.10.15-6";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -532,7 +532,7 @@ function hero(ic, t, s) { return `<div class="hero"><div class="ic">${ic}</div><
 
 /* ---- Telefon kartochkasi: rasm, ma'lumotlar, narx ---- */
 function pcard(s, on) {
-  const specs = [s.battery ? `Batareya ${s.battery}%` : "", s.cyc != null && s.cyc !== "" ? `${s.cyc} sikl` : "", s.box ? (s.box === "yes" ? "Qutisi bor" : "Qutisiz") : "", s.grade ? gradeOf(s.grade) : ""].filter(Boolean);
+  const specs = [s.cond === "yangi" ? "Yangi" : "B/U", s.battery ? `Batareya ${s.battery}%` : "", s.cyc != null && s.cyc !== "" ? `${s.cyc} sikl` : "", s.box ? (s.box === "yes" ? "Qutisi bor" : "Qutisiz") : "", s.grade ? gradeOf(s.grade) : ""].filter(Boolean);
   return `<button class="pcard ${on ? "on" : ""}" data-stock="${esc(s.id)}">
     <span class="pimg">${imgOf(s)}</span>
     <span class="pbody"><b class="pname">${esc(s.modelName)}</b><span class="pmeta">${esc(s.mem || "")}${s.color ? " · " + esc(colorUz(s.color)) : ""}</span>

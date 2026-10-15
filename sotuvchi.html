@@ -272,7 +272,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-2";
+const APP_VERSION = "2026.10.15-3";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -778,7 +778,7 @@ function renderStock() {
   <div id="stockList">${stockListHtml(stockItems())}</div>`;
 }
 function stockListHtml(items) {
-  return items.length ? items.map(s => `<div class="item"><div><b>${esc(s.modelName)}</b> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span>
+  return items.length ? items.map(s => `<div class="item"><div><b>${esc(s.modelName)}</b> <span class="badge ${s.cond === "yangi" ? "ok" : "grey"}">${s.cond === "yangi" ? "Yangi" : "B/U"}</span> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span>
     <div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", batareya " + s.battery + "%" : ""}${s.imei ? ", IMEI " + esc(s.imei) : ""}</div>
     <div class="src">${s.other ? "Boshqa filial" : `Tannarx: ${uzs(toUzs(s.buyUsd))}`}${s.status === "sotilgan" && s.sold ? ` · Sotildi ${fdt(s.sold.at)}, ${esc(s.sold.clientName || "")}` : ""}</div>
     ${s.branchId !== S.me.branchId ? `<div><span class="badge gold">${esc(bName(s.branchId))}</span></div>` : ""}</div>

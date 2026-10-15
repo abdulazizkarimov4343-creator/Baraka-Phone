@@ -235,7 +235,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-3";
+const APP_VERSION = "2026.10.15-5";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -343,7 +343,7 @@ function syncCatalog() {
   clearTimeout(catalogTimer);
   catalogTimer = setTimeout(async () => {
     try {
-      const items = S.stock.filter(s => s.status === "sotuvda").map(s => ({id: s.id, branchId: s.branchId, modelName: s.modelName || "", brand: s.brand || "", mem: s.mem || "", color: s.color || "", grade: s.grade || "", battery: s.battery || null, cyc: s.cyc ?? null, box: s.box || "", sellUsd: s.sellUsd || 0}));
+      const items = S.stock.filter(s => s.status === "sotuvda").map(s => ({id: s.id, branchId: s.branchId, modelName: s.modelName || "", brand: s.brand || "", mem: s.mem || "", color: s.color || "", grade: s.grade || "", battery: s.battery || null, cyc: s.cyc ?? null, box: s.box || "", cond: s.cond || "bu", sellUsd: s.sellUsd || 0}));
       const branches = Object.fromEntries(S.branches.map(b => [b.id, b.name]));
       await setDoc(doc(db, "settings", "catalog"), {items, branches, updatedAt: serverTimestamp()});
     } catch (e) { console.warn("catalog", e); }
@@ -585,7 +585,7 @@ function renderStock() {
     const sold = s.status === "sotilgan";
     const pr = sold && s.sold?.priceUzs ? s.sold.priceUzs - toUzs(s.buyUsd) : toUzs(s.sellUsd) - toUzs(s.buyUsd);
     return `<tr>
-    <td><b>${esc(s.modelName)}</b> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.cyc != null ? ", " + s.cyc + " sikl" : ""}${s.box ? (s.box === "yes" ? ", qutisi bor" : ", qutisiz") : ""}${s.imei ? "<br>IMEI " + esc(s.imei) : ""}</div>
+    <td><b>${esc(s.modelName)}</b> <span class="badge ${s.cond === "yangi" ? "ok" : "grey"}">${s.cond === "yangi" ? "Yangi" : "B/U"}</span> <span class="badge ${esc(s.grade)}">${esc(s.grade)}</span><div class="src">${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}${s.battery ? ", " + s.battery + "%" : ""}${s.cyc != null ? ", " + s.cyc + " sikl" : ""}${s.box ? (s.box === "yes" ? ", qutisi bor" : ", qutisiz") : ""}${s.imei ? "<br>IMEI " + esc(s.imei) : ""}</div>
       <div class="src">${s.source === "trade-in" ? "Trade-in orqali" : "Xarid"} · ${fdate(s.createdAt)}</div>
       ${(s.transfers || []).length ? `<div class="src">Ko'chirilgan: ${s.transfers.map(t => `${esc(bName(t.from))} → ${esc(bName(t.to))} (${fdate(t.at)})`).join("; ")}</div>` : ""}
       ${sold && s.sold ? `<div class="src"><b>Sotildi:</b> ${fdate(s.sold.at)}, ${esc(s.sold.clientName || "")} (${s.sold.kind === "deal" ? "trade-in" : "sotuv"})</div>` : ""}</td>
@@ -627,18 +627,40 @@ function renderStock() {
     try { await deleteDoc(doc(db, "stock", b.dataset.delstock)); S.stock = S.stock.filter(s => s.id !== b.dataset.delstock); renderStock(); syncCatalog(); toast("O'chirildi"); } catch (e) { toast(errText(e), true); }
   });
 }
+// Rang nomlari: asl nomi yonida qavs ichida o'zbekcha nomi
+const COLOR_UZ = {"black": "qora", "white": "oq", "silver": "kumush", "gold": "oltin", "space gray": "kulrang", "space grey": "kulrang", "space black": "qora",
+  "midnight": "to'q qora", "starlight": "och oltin", "blue": "ko'k", "red": "qizil", "(product)red": "qizil", "green": "yashil", "purple": "binafsha",
+  "deep purple": "to'q binafsha", "yellow": "sariq", "pink": "pushti", "coral": "marjon", "graphite": "to'q kulrang", "sierra blue": "och ko'k",
+  "pacific blue": "to'q ko'k", "alpine green": "to'q yashil", "midnight green": "to'q yashil", "natural titanium": "tabiiy titan", "black titanium": "qora titan",
+  "white titanium": "oq titan", "blue titanium": "ko'k titan", "desert titanium": "qum rang titan", "teal": "firuza", "ultramarine": "to'q ko'k",
+  "cosmic orange": "to'q sariq", "deep blue": "to'q ko'k", "lavender": "och binafsha", "mist blue": "och ko'k", "sage": "och yashil",
+  "cloud white": "oq", "light gold": "och oltin", "sky blue": "havorang", "burgundy": "to'q qizil", "glacier blue": "och ko'k"};
+const colorUz = c => { const u = COLOR_UZ[String(c || "").trim().toLowerCase()]; return u ? `${c} (${u})` : String(c || ""); };
+// Rang tanlash: modelning ranglari ro'yxati + "Boshqa rang" (qo'lda yozish)
+const OTHER = "__other";
+const colorPicker = (id, m, cur = "") => { const cols = m?.colors || [], known = !cur || cols.includes(cur);
+  return `<select class="inp" id="${id}">${cols.map(c => `<option value="${esc(c)}" ${c === cur ? "selected" : ""}>${esc(colorUz(c))}</option>`).join("")}<option value="${OTHER}" ${!known || !cols.length ? "selected" : ""}>Boshqa rang…</option></select>
+  <input class="inp ${known && cols.length ? "hidden" : ""}" id="${id}Txt" placeholder="Rangni yozing" value="${known ? "" : esc(cur)}" style="margin-top:6px">`; };
+const bindPicker = id => { const sel = $("#" + id); sel.onchange = () => $("#" + id + "Txt").classList.toggle("hidden", sel.value !== OTHER); };
+const pickedColor = id => $("#" + id).value === OTHER ? $("#" + id + "Txt").value.trim() : $("#" + id).value;
 // Mijoz sahifasidagi kartochkada ko'rinadigan ma'lumotlar
+// Omborga faqat iPhone 13 dan 17 Pro Max gacha qo'shiladi (13 mini, 16e, 17e ham kiradi)
+const STOCK_MODEL = m => m.brand === "Apple" && (n => n >= 13 && n <= 17)(+(String(m.name).match(/^iPhone (\d+)/) || [])[1]);
+const COND = {yangi: "Yangi", bu: "B/U"};
+const condSel = (id, cur = "bu") => `<select class="inp" id="${id}">${Object.entries(COND).map(([k, l]) => `<option value="${k}" ${k === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
 function stockEditModal(s) {
   modal(`<h2>Telefon ma'lumotlari</h2><p class="sub">${esc(s.modelName)} ${esc(s.mem || "")}. Bu ma'lumotlar mijoz sahifasidagi kartochkada ko'rinadi.</p>
-  <div class="row"><div class="field"><label>Rangi</label><input class="inp" id="eColor" value="${esc(s.color || "")}"></div>
+  <div class="field"><label>Holati</label>${condSel("eCond", s.cond || "bu")}</div>
+  <div class="row"><div class="field"><label>Rangi</label>${colorPicker("eColor", S.models.find(m => m.name === s.modelName && (!s.brand || m.brand === s.brand)), s.color || "")}</div>
     <div class="field"><label>Daraja</label><select class="inp" id="eGrade">${["A", "B", "C", "D"].map(g => `<option ${s.grade === g ? "selected" : ""}>${g}</option>`).join("")}</select></div></div>
   <div class="row"><div class="field"><label>Batareya, %</label><input class="inp" id="eBatt" type="number" min="1" max="100" value="${s.battery ?? ""}"></div>
     <div class="field"><label>Batareya sikli</label><input class="inp" id="eCyc" type="number" min="0" value="${s.cyc ?? ""}"></div>
     <div class="field"><label>Qutisi</label><select class="inp" id="eBox"><option value="">—</option><option value="yes" ${s.box === "yes" ? "selected" : ""}>Bor</option><option value="no" ${s.box === "no" ? "selected" : ""}>Yo'q</option></select></div></div>
   <div class="acts"><button class="btn sec" id="eNo">Bekor qilish</button><button class="btn pri" id="eOk">Saqlash</button></div>`);
+  bindPicker("eColor");
   $("#eNo").onclick = closeModal;
   $("#eOk").onclick = async () => {
-    const data = {color: $("#eColor").value.trim(), grade: $("#eGrade").value, battery: +$("#eBatt").value || null,
+    const data = {cond: $("#eCond").value, color: pickedColor("eColor"), grade: $("#eGrade").value, battery: +$("#eBatt").value || null,
       cyc: $("#eCyc").value === "" ? null : Math.max(0, Math.round(+$("#eCyc").value)), box: $("#eBox").value};
     try { await updateDoc(doc(db, "stock", s.id), {...data, updatedAt: serverTimestamp()}); Object.assign(s, data); closeModal(); renderStock(); syncCatalog(); toast("Saqlandi"); }
     catch (e) { toast(errText(e), true); }
@@ -647,7 +669,7 @@ function stockEditModal(s) {
 function moveModal(s) {
   const opts = S.branches.filter(b => b.active !== false && b.id !== s.branchId).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join("");
   if (!opts) return toast("Boshqa faol filial yo'q", true);
-  modal(`<h2>Filialga ko'chirish</h2><p class="sub">${esc(s.modelName)} ${esc(s.mem || "")}${s.color ? ", " + esc(s.color) : ""}<br>Hozir: <b>${esc(bName(s.branchId))}</b></p>
+  modal(`<h2>Filialga ko'chirish</h2><p class="sub">${esc(s.modelName)} ${esc(s.mem || "")}${s.color ? ", " + esc(colorUz(s.color)) : ""}<br>Hozir: <b>${esc(bName(s.branchId))}</b></p>
   <div class="field"><label>Qaysi filialga</label><select class="inp" id="mvTo">${opts}</select></div>
   <p class="src">Ko'chirilgach, telefon o'sha filial sotuvchisining ilovasida tanlanadigan bo'ladi.</p>
   <div class="acts"><button class="btn sec" id="mvNo">Bekor qilish</button><button class="btn pri" id="mvOk">Ko'chirish</button></div>`);
@@ -660,12 +682,13 @@ function moveModal(s) {
 }
 function stockModal() {
   const branchOpts = S.branches.filter(b => b.active !== false).map(b => `<option value="${b.id}" ${S.branchFilter === b.id ? "selected" : ""}>${esc(b.name)}</option>`).join("");
-  const modelOpts = S.models.filter(m => m.active !== false).map(m => `<option value="${m.id}">${esc(m.brand)} ${esc(m.name)}</option>`).join("");
-  modal(`<h2>Omborga telefon qo'shish</h2><p class="sub">Xarid qilingan B/U telefon.</p>
+  const modelOpts = S.models.filter(m => m.active !== false && STOCK_MODEL(m)).map(m => `<option value="${m.id}">${esc(m.brand)} ${esc(m.name)}</option>`).join("");
+  modal(`<h2>Omborga telefon qo'shish</h2><p class="sub">Xarid qilingan telefon (iPhone 13 – 17 Pro Max).</p>
+  <div class="field"><label>Holati</label>${condSel("nCond")}</div>
   <div class="field"><label>Filial</label><select class="inp" id="nBranch">${branchOpts}</select></div>
   <div class="field"><label>Model</label><select class="inp" id="nModel">${modelOpts}</select></div>
   <div class="row"><div class="field"><label>Xotira</label><select class="inp" id="nMem"></select></div>
-    <div class="field"><label>Rangi</label><input class="inp" id="nColor" list="nColors"><datalist id="nColors"></datalist></div></div>
+    <div class="field"><label>Rangi</label><div id="nColorBox"></div></div></div>
   <div class="row"><div class="field"><label>Daraja</label><select class="inp" id="nGrade"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
     <div class="field"><label>Batareya, %</label><input class="inp" id="nBatt" type="number" min="1" max="100" value="100"></div></div>
   <div class="row"><div class="field"><label>Batareya sikli</label><input class="inp" id="nCyc" type="number" min="0" placeholder="bilmasangiz bo'sh qoldiring"></div>
@@ -675,7 +698,7 @@ function stockModal() {
     <div class="field"><label>Sotish narxi, $</label><input class="inp" id="nSell" type="number" min="0"></div></div>
   <div id="nErr" class="err hidden"></div>
   <div class="acts"><button class="btn sec" id="nCancel">Bekor qilish</button><button class="btn pri" id="nSave">Qo'shish</button></div>`);
-  const fill = () => { const m = S.models.find(x => x.id === $("#nModel").value); $("#nMem").innerHTML = (m?.mems || []).map(x => `<option>${esc(x)}</option>`).join(""); $("#nColors").innerHTML = (m?.colors || []).map(c => `<option value="${esc(c)}">`).join(""); };
+  const fill = () => { const m = S.models.find(x => x.id === $("#nModel").value); $("#nMem").innerHTML = (m?.mems || []).map(x => `<option>${esc(x)}</option>`).join(""); $("#nColorBox").innerHTML = colorPicker("nColor", m); bindPicker("nColor"); };
   $("#nModel").onchange = fill; fill();
   $("#nCancel").onclick = closeModal;
   $("#nSave").onclick = async () => {
@@ -685,7 +708,7 @@ function stockModal() {
     if (!(buy > 0) || !(sell > 0)) { e.textContent = "Tannarx va sotish narxini kiriting"; e.classList.remove("hidden"); return; }
     const warn = [buy > PRICE_LIMIT || sell > PRICE_LIMIT ? `narx ${usd(PRICE_LIMIT)} dan yuqori` : "", sell < buy ? "sotish narxi tannarxdan past" : "", sell > buy * 3 ? "sotish narxi tannarxdan 3 barobardan ko'p" : ""].filter(Boolean);
     if (warn.length && !$("#nSave").dataset.ok) { e.innerHTML = `Diqqat: ${warn.join(", ")}. Tannarx ${usd(buy)} (${uzs(toUzs(buy))}), sotish ${usd(sell)} (${uzs(toUzs(sell))}). To'g'ri bo'lsa, yana bir marta <b>Qo'shish</b> ni bosing.`; e.classList.remove("hidden"); $("#nSave").dataset.ok = "1"; return; }
-    const data = {branchId: $("#nBranch").value, modelName: m.name, brand: m.brand, mem: $("#nMem").value, color: $("#nColor").value.trim(), imei: digits($("#nImei").value),
+    const data = {branchId: $("#nBranch").value, modelName: m.name, brand: m.brand, mem: $("#nMem").value, color: pickedColor("nColor"), cond: $("#nCond").value, imei: digits($("#nImei").value),
       grade: $("#nGrade").value, battery: +$("#nBatt").value || null, cyc: $("#nCyc").value === "" ? null : Math.max(0, Math.round(+$("#nCyc").value)), box: $("#nBox").value,
       buyUsd: buy, sellUsd: sell, status: "sotuvda", source: "xarid",
       createdBy: S.me.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp()};
