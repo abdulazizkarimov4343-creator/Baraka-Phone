@@ -298,7 +298,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.16-9";
+const APP_VERSION = "2026.10.16-10";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -352,7 +352,7 @@ function closeModal() { $("#modalRoot").innerHTML = ""; }
 function hasCycles(m) { return m && m.brand === "Apple" && /iPhone (1[5-9]|[2-9]\d|Air)/.test(m.name); }
 // Har 1% batareya kamayishi uchun battPct%, har 100 sikl uchun cycPct% (admin Sozlamalarda o'zgartiradi)
 function battAdj(m, a, s) {
-  const r = Math.round, out = [], bp = s.battPct ?? 1, cp = s.cycPct ?? 1, batt = a.batt ?? 100;
+  const r = Math.round, out = [], bp = s.battPct ?? 0.5, cp = s.cycPct ?? 1, batt = a.batt ?? 100;
   const bd = Math.min(50, Math.max(0, 100 - batt) * bp); if (bd > 0) out.push([`Batareya ${batt}%`, r(bd * 100) / 100]);
   if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const cd = Math.min(50, Math.max(0, +a.cyc) / 100 * cp); if (cd > 0) out.push([`Batareya sikli: ${a.cyc}`, r(cd * 100) / 100]); }
   return out;
@@ -836,7 +836,7 @@ async function saveAriza() {
       status: "yangi", no, branchId: st?.branchId || "",
       client: {name: W.name.slice(0, 60), phone}, note: W.note.slice(0, 500),
       device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, answers: answers(),
-               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter || "D", fv: 5}},
+               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter || "D", fv: 3}},
       deviceUzs: c.uzs, stockId: st ? st.id : "", ourModel: st ? `${st.modelName} ${st.mem || ""}`.trim() : "", ourUzs: st ? toUzs(st.sellUsd) : 0,
       diffUzs: diff, payType: p ? "nasiya" : "", months: p ? W.months : 0, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0,
       kurs: S.settings.kurs, createdAt: serverTimestamp()});
