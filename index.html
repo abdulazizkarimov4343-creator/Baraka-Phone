@@ -171,6 +171,8 @@ a.btn{text-decoration:none}
 .bph .cam{position:absolute;top:6px;right:6px;font-size:15px;opacity:.75}
 .bph .lab{position:absolute;left:4px;right:4px;bottom:4px;background:rgba(0,20,60,.72);color:#fff;font-size:11px;padding:2px 6px;border-radius:6px;text-align:center}
 .bph input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.bph.pass{aspect-ratio:16/10;max-width:300px}
+.bph .pico{font-size:42px;margin-bottom:18px;opacity:.8}
 @media (max-width:500px){.bphotos{grid-template-columns:repeat(2,1fr)}}
 
 .btn.green{background:#1E9A4C;color:#fff}
@@ -254,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.15-14";
+const APP_VERSION = "2026.10.16-1";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -943,6 +945,8 @@ const IS_ADMIN = true;
    keyin "Sotuvga chiqarildi" — sotuv narxi bilan omborga "Sotuvda" holatida qo'shiladi.
    Rasmlar "photos" to'plamiga (arizaId bilan) yoziladi; ruxsat bo'lmasa ariza ichiga saqlanadi. */
 const BUY_SLOTS = ["Old tomoni", "Orqa tomoni", "Tepasi", "Tagi", "Chap yon tomoni", "O'ng yon tomoni"];
+const PASS_SLOT = 6, PASS_LABEL = "Pasport rasmi"; // pasport rasmi — 7-rasm sifatida saqlanadi
+const slotLabel = (slot, label) => BUY_SLOTS[slot] || (slot === PASS_SLOT ? PASS_LABEL : label || "");
 let BUY = null;
 // Bo'sh katakdagi yo'riqnoma chizmasi: telefonning qaysi tomonini suratga olish kerakligi (sariq — shu tomon)
 const Y = "#E8B921", L = "#9AA8C2", F = "#EEF2F8";
@@ -998,12 +1002,13 @@ function shrinkPhoto(file) {
   });
 }
 function renderBuyModal() {
-  const x = S.arizalar.find(a => a.id === BUY.id), d = x.device || {}, done = BUY.photos.filter(Boolean).length;
+  const x = S.arizalar.find(a => a.id === BUY.id), d = x.device || {}, done = BUY.photos.slice(0, 6).filter(Boolean).length;
   modal(`<h2>Telefon sotib olindi</h2><p class="src" style="margin:0 0 10px">${esc(d.name || "")} ${esc(d.mem || "")}${d.color ? ", " + esc(d.color) : ""} · ${esc(x.client?.name || "")} · taxminiy baho ${uzs(x.manualUzs || x.deviceUzs)}</p>
   <div class="field"><label for="bPrice">Nech pulga olindi, so'm *</label><input class="inp" id="bPrice" inputmode="numeric" value="${BUY.price ? sum(BUY.price) : ""}"></div>
   <div class="row2"><div class="field"><label for="bImei">IMEI *</label><input class="inp" id="bImei" inputmode="numeric" placeholder="*#06# terib bilib olinadi" value="${esc(BUY.imei)}"></div>
     <div class="field"><label for="bPass">Mijoz pasporti *</label><input class="inp" id="bPass" placeholder="AA1234567" value="${esc(BUY.pass)}" style="text-transform:uppercase"></div></div>
-  <div class="lbl" style="margin-bottom:6px">Rasmlar * (<span id="bCnt">${done}</span>/6)</div>
+  <div class="field"><label>Pasport rasmi *</label><label class="bph pass">${BUY.photos[PASS_SLOT] ? `<img src="${BUY.photos[PASS_SLOT]}" alt="">` : `<span class="pico">🪪</span><span class="cam">📷</span>`}<span class="lab">Pasportning rasmli sahifasi</span><input type="file" accept="image/*" capture="environment" data-bslot="${PASS_SLOT}"></label></div>
+  <div class="lbl" style="margin-bottom:6px">Telefon rasmlari * (<span id="bCnt">${done}</span>/6)</div>
   <div class="bphotos">${BUY_SLOTS.map((l, i) => `<label class="bph">${BUY.photos[i] ? `<img src="${BUY.photos[i]}" alt="">` : guideSvg(i) + `<span class="cam">📷</span>`}<span class="lab">${esc(l)}</span><input type="file" accept="image/*" capture="environment" data-bslot="${i}"></label>`).join("")}</div>
   <div id="bErr" class="err hidden"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button class="btn sec" id="bNo">Bekor qilish</button><button class="btn pri" id="bOk" ${BUY.saving ? "disabled" : ""}>${BUY.saving ? "Saqlanmoqda…" : "Saqlash"}</button></div>`, true);
@@ -1014,6 +1019,7 @@ async function saveBuy() {
   if (!(BUY.price > 0)) return fail("Olingan narxni kiriting");
   if (BUY.imei.length !== 15) return fail("IMEI 15 ta raqamdan iborat bo'lishi kerak");
   if (!/^[A-Z]{2}\d{7}$/.test(BUY.pass)) return fail("Pasport seriya va raqamini yozing, masalan AA1234567");
+  if (!BUY.photos[PASS_SLOT]) return fail("Pasport rasmini biriktiring");
   const miss = BUY_SLOTS.filter((_, i) => !BUY.photos[i]);
   if (miss.length) return fail("Rasmlar yetishmayapti: " + miss.join(", "));
   BUY.saving = true; renderBuyModal();
@@ -1021,9 +1027,9 @@ async function saveBuy() {
     // Rasmlar alohida hujjatlarda; ruxsat bo'lmasa — ariza ichida
     let embedded = null;
     try {
-      for (let i = 0; i < 6; i++) await setDoc(doc(collection(db, "photos")), {arizaId: x.id, branchId: x.branchId || S.me.branchId || "", slot: i, label: BUY_SLOTS[i], data: BUY.photos[i], createdBy: S.me.id, createdAt: serverTimestamp()});
+      for (let i = 0; i <= PASS_SLOT; i++) await setDoc(doc(collection(db, "photos")), {arizaId: x.id, branchId: x.branchId || S.me.branchId || "", slot: i, label: slotLabel(i), data: BUY.photos[i], createdBy: S.me.id, createdAt: serverTimestamp()});
     } catch (e) { if (!String(e?.code || "").includes("permission")) throw e; embedded = BUY.photos.slice(); }
-    const bought = {priceUzs: BUY.price, imei: BUY.imei, passport: BUY.pass, at: serverTimestamp(), by: S.me.id, byName: S.me.fullName || "", photoCount: 6, ...(embedded ? {photos: embedded} : {})};
+    const bought = {priceUzs: BUY.price, imei: BUY.imei, passport: BUY.pass, at: serverTimestamp(), by: S.me.id, byName: S.me.fullName || "", photoCount: 7, ...(embedded ? {photos: embedded} : {})};
     await updateDoc(doc(db, "arizalar", x.id), {status: "olindi", bought, updatedAt: serverTimestamp(), updatedBy: S.me.id, updatedByName: S.me.fullName || ""});
     Object.assign(x, {status: "olindi", bought: {...bought, at: new Date()}}); BUY = null; closeModal(); renderArizalar(); toast("Sotib olindi deb saqlandi");
   } catch (e) { BUY.saving = false; renderBuyModal(); fail(errText(e)); }
@@ -1035,7 +1041,7 @@ async function showBuyPhotos(id) {
     catch (e) { return toast(errText(e), true); }
   }
   modal(`<h2>Telefon rasmlari</h2><p class="src" style="margin:0 0 10px">${esc(x.device?.name || "")} ${esc(x.device?.mem || "")} · ${esc(x.client?.name || "")}</p>
-  <div class="bphotos view">${list.length ? list.map(p => `<a class="bph" href="${p.data}" target="_blank" rel="noopener"><img src="${p.data}" alt=""><span class="lab">${esc(BUY_SLOTS[p.slot] || p.label || "")}</span></a>`).join("") : `<div class="empty">Rasm topilmadi.</div>`}</div>
+  <div class="bphotos view">${list.length ? list.map(p => `<a class="bph" href="${p.data}" target="_blank" rel="noopener"><img src="${p.data}" alt=""><span class="lab">${esc(slotLabel(p.slot, p.label))}</span></a>`).join("") : `<div class="empty">Rasm topilmadi.</div>`}</div>
   <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn sec" id="bNo">Yopish</button></div>`, true);
 }
 function renderListModal(x) {
@@ -1174,8 +1180,8 @@ document.addEventListener("change", async e => {
   try {
     const data = await shrinkPhoto(e.target.files[0]); if (!BUY) return;
     BUY.photos[+i] = data;
-    cell.querySelectorAll("img, .guide, .cam").forEach(n => n.remove()); cell.insertAdjacentHTML("afterbegin", `<img src="${data}" alt="">`);
-    const n = $("#bCnt"); if (n) n.textContent = BUY.photos.filter(Boolean).length;
+    cell.querySelectorAll("img, .guide, .cam, .pico").forEach(n => n.remove()); cell.insertAdjacentHTML("afterbegin", `<img src="${data}" alt="">`);
+    const n = $("#bCnt"); if (n) n.textContent = BUY.photos.slice(0, 6).filter(Boolean).length;
     $("#bErr")?.classList.add("hidden");
   } catch (er) { toast(er.message, true); }
 });
