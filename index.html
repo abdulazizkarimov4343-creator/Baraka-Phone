@@ -256,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-4";
+const APP_VERSION = "2026.10.16-7";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -316,14 +316,17 @@ const errText = e => {
 
 /* Narx hisoblash — APK ilova bilan bir xil formula */
 function hasCycles(m) { return m.brand === "Apple" && /iPhone (1[5-9]|[2-9]\d|Air)/.test(m.name); }
-// fv 2 (2026.10.16 dan): batareya va sikl ball emas, narxdan to'g'ridan-to'g'ri foiz ayiradi. legacy — eski shartnomalarni tekshirish uchun
+// fv 2 (2026.10.16 dan): batareya va sikl narxdan foiz ayiradi; fv 4: batareya sig'imi dollarda. legacy — eski shartnomalar uchun
+// Batareya sig'imi bo'yicha narxdan dollar ayiriladi (battUsd, barcha modellar).
+// Sikl: har 100 sikl uchun cycPct% (iPhone 15+). Admin Sozlamalarda o'zgartiradi. Natija: [nomi, qiymat, "%" yoki "$"]
+const DEF_BATT_USD = [{min: 100, usd: 0}, {min: 90, usd: 10}, {min: 80, usd: 20}, {min: 0, usd: 40}];
 function battAdj(m, a, s) {
-  const out = [], bp = s.battPct ?? 0.5, cp = s.cycPct ?? 1, batt = a.batt ?? 100;
-  const bd = Math.min(50, Math.max(0, 100 - batt) * bp); if (bd > 0) out.push(Math.round(bd * 100) / 100);
-  if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const cd = Math.min(50, Math.max(0, +a.cyc) / 100 * cp); if (cd > 0) out.push(Math.round(cd * 100) / 100); }
+  const r = Math.round, out = [], cp = s.cycPct ?? 1, batt = a.batt ?? 100;
+  const t = (s.battUsd || DEF_BATT_USD).find(x => batt >= x.min); if (t && t.usd > 0) out.push([`Batareya ${batt}%`, t.usd, "$"]);
+  if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const cd = Math.min(50, Math.max(0, +a.cyc) / 100 * cp); if (cd > 0) out.push([`Batareya sikli: ${a.cyc}`, r(cd * 100) / 100, "%"]); }
   return out;
 }
-function calcTradein(m, mem, a, s, fv = 3) {
+function calcTradein(m, mem, a, s, fv = 4) {
   const legacy = fv < 2;
   const mi = Math.max(0, m.mems.indexOf(mem));
   const market = m.market + m.step * mi;
@@ -342,8 +345,10 @@ function calcTradein(m, mem, a, s, fv = 3) {
   if (fv >= 3) for (const q of ["screen","body","bio","cam","repair"]) { const o = (s.pts[q] || []).find(o => o.v === a[q]); if (o && o.p) k *= 1 - o.p / 100; }
   else k = 1 - s.grades[gi].pct / 100;
   if (a.box === "no") k *= 1 - s.noBoxPct / 100;
-  if (!legacy) battAdj(m, a, s).forEach(p => k *= 1 - p / 100);
-  return {usd: Math.round(base * k * 100) / 100, points: pts, grade: s.grades[gi].label};
+  let off = 0;
+  // fv 2–3 da batareya sig'imi foizda hisoblangan
+  if (!legacy) battAdj(m, a, s).forEach(([, v, u]) => { if (u === "$" && fv >= 4) off += v; else if (u === "$") k *= 1 - Math.min(50, Math.max(0, 100 - (a.batt ?? 100)) * (s.battPct ?? 0.5)) / 100; else k *= 1 - v / 100; });
+  return {usd: Math.max(0, Math.round((base * k - off) * 100) / 100), points: pts, grade: s.grades[gi].label};
 }
 
 /* ================= STATE ================= */
@@ -1474,7 +1479,7 @@ function modelImgModal(m, done) {
   if ($("#miDel")) $("#miDel").onclick = () => save("");
 }
 function renderSettings() {
-  const s = structuredClone(S.settings); s.battPct ??= 0.5; s.cycPct ??= 1;
+  const s = structuredClone(S.settings); s.battPct ??= 0.5; s.cycPct ??= 1; s.battUsd ??= structuredClone(DEF_BATT_USD);
   const num = (path, v, step = 1, w = 90) => `<input class="inp sm" style="width:${w}px" type="number" step="${step}" data-set="${path}" value="${v}">`;
   const gFrom = i => i === 0 ? 0 : s.grades[i - 1].max + 1, tFrom = i => i === 0 ? 1 : s.tiers[i - 1].to + 1;
   $("#page").innerHTML = `
@@ -1492,8 +1497,9 @@ function renderSettings() {
   <div class="panel"><h3 style="margin-top:0">Nuqsonlar</h3><div class="tw"><table><thead><tr><th>Savol</th><th>Javob</th><th>Narxdan chegirma, % (= ball)</th></tr></thead><tbody>
     ${Object.entries(s.pts).map(([k, arr]) => arr.map((o, i) => `<tr><td>${i === 0 ? PT_NAME[k] || k : ""}</td><td>${esc(o.label)}</td><td>${num(`pts.${k}.${i}.p`, o.p)}</td></tr>`).join("")).join("")}
   </tbody></table></div></div>
-  <div class="panel"><h3 style="margin-top:0">Batareya ta'siri</h3><p class="sub">Batareya sig'imi va sikli narxdan to'g'ridan-to'g'ri foiz ayiradi. Misol (0,5% va 1%): 90% · 250 sikl → −5% va −2,5%.</p>
-    <div class="row"><div class="field"><label>Har 1% sig'im kamayishi uchun, %</label>${num("battPct", s.battPct, 0.1)}</div><div class="field"><label>Har 100 sikl uchun, % (iPhone 15+)</label>${num("cycPct", s.cycPct, 0.1)}</div></div></div>
+  <div class="panel"><h3 style="margin-top:0">Batareya ta'siri</h3><p class="sub">Batareya sig'imi bo'yicha narxdan dollar ayiriladi (barcha modellar). Sikl (iPhone 15+): har 100 sikl uchun foiz.</p>
+    <div class="tw" style="margin-bottom:10px"><table><thead><tr><th>Sig'im</th><th>Ayiriladi, $</th></tr></thead><tbody>${s.battUsd.map((b, i) => `<tr><td>${i === 0 ? "100%" : i === s.battUsd.length - 1 ? s.battUsd[i - 1].min + "% dan past" : b.min + "–" + (s.battUsd[i - 1].min - 1) + "%"}</td><td>${num(`battUsd.${i}.usd`, b.usd)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="row"><div class="field"><label>Har 100 sikl uchun, % (iPhone 15+)</label>${num("cycPct", s.cycPct, 0.1)}</div></div></div>
   <div class="panel"><h3 style="margin-top:0">Nasiya ustamalari</h3><div class="tw"><table><thead><tr><th>Muddat</th><th>Gacha, oy</th><th>Ustama, % / oy</th></tr></thead><tbody>
     ${s.tiers.map((t, i) => `<tr><td>${tFrom(i)}–${t.to} oy</td><td>${num(`tiers.${i}.to`, t.to)}</td><td>${num(`tiers.${i}.rate`, t.rate, 0.1)}</td></tr>`).join("")}</tbody></table></div></div>
   <div style="position:sticky;bottom:10px;display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn pri" id="saveSettings">Sozlamalarni saqlash</button></div>
