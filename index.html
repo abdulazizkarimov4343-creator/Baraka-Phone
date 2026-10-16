@@ -256,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-1";
+const APP_VERSION = "2026.10.16-2";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -917,6 +917,7 @@ function qrSvg(text) {
   return `<svg viewBox="-2 -2 ${n + 4} ${n + 4}" shape-rendering="crispEdges" role="img" aria-label="Mijoz sahifasi QR-kodi"><rect x="-2" y="-2" width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#00297D"/></svg>`;
 }
 // Do'konga osib qo'yish uchun plakat: logo, sarlavha, QR-kod va havola
+const SHOP_PHONE = "+998 73 249 29 29"; // plakatdagi do'kon raqami
 function qrPoster(text) {
   const W = 1240, H = 1754, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const g = cv.getContext("2d"), q = qrMatrix(text), n = q.getModuleCount();
@@ -933,9 +934,9 @@ function qrPoster(text) {
   g.fillStyle = "#fff"; g.fillRect(x0, y0, size, size);
   g.fillStyle = "#00297D";
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) g.fillRect(Math.floor(x0 + (c + 2) * cell), Math.floor(y0 + (r + 2) * cell), Math.ceil(cell), Math.ceil(cell));
-  g.fillStyle = "#141C2E"; g.font = "600 44px 'Golos Text', sans-serif";
-  g.fillText("Login va parol kerak emas", W / 2, y0 + size + 120);
-  g.fillStyle = "#5F6B82"; g.font = "400 30px 'Golos Text', sans-serif"; g.fillText(text, W / 2, y0 + size + 180);
+  g.fillStyle = "#5F6B82"; g.font = "500 40px 'Golos Text', sans-serif";
+  g.fillText("Murojaat uchun", W / 2, y0 + size + 110);
+  g.fillStyle = "#00297D"; g.font = "700 72px Poppins, sans-serif"; g.fillText(SHOP_PHONE, W / 2, y0 + size + 195);
   g.fillStyle = "#00297D"; g.fillRect(0, H - 34, W, 34);
   return cv.toDataURL("image/png");
 }
