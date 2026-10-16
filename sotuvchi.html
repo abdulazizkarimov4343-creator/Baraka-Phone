@@ -291,7 +291,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-11";
+const APP_VERSION = "2026.10.16-13";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -313,7 +313,8 @@ const firebaseConfig = {
   appId: "1:17371402023:web:c401d80597bd34b346e302"
 };
 const LOGIN_DOMAIN = "baraka.local";
-const app = initializeApp(firebaseConfig);
+// Alohida nom: sotuvchi logini admin panel loginidan ajralgan holda saqlanadi (bitta brauzerda ikkalasi ham ochiq tura oladi)
+const app = initializeApp(firebaseConfig, "sotuvchi");
 const auth = getAuth(app);
 const db = getFirestore(app);
 
