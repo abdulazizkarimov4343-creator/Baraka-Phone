@@ -296,7 +296,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.16-3";
+const APP_VERSION = "2026.10.16-4";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -365,8 +365,9 @@ function calcTradein(m, mem, a, s) {
   const QN = {screen: "Ekran", body: "Korpus", bio: "Face ID / Touch ID", cam: "Kamera", repair: "Ta'mir"};
   for (const k of ["screen", "body", "bio", "cam", "repair"]) { const o = (s.pts[k] || []).find(o => o.v === a[k]); if (o && o.p) { pts += o.p; lines.push([QN[k] + ": " + o.label.toLowerCase(), o.p]); } }
   let gi = s.grades.findIndex(g => pts <= g.max); if (gi < 0) gi = s.grades.length - 1;
-  let k = 1 - s.grades[gi].pct / 100; if (a.box === "no") k *= 1 - s.noBoxPct / 100;
-  // Batareya sig'imi va sikli narxga to'g'ridan-to'g'ri ta'sir qiladi (ball emas, foiz)
+  // Har bir nuqson (chizilish, qirilish, ta'mir...) narxdan o'z foizini ayiradi; daraja (A'lo...) faqat nom uchun
+  let k = 1; lines.forEach(l => k *= 1 - l[1] / 100); if (a.box === "no") k *= 1 - s.noBoxPct / 100;
+  // Batareya sig'imi va sikli ham narxga to'g'ridan-to'g'ri ta'sir qiladi
   const adj = battAdj(m, a, s); adj.forEach(x => k *= 1 - x[1] / 100);
   const u = Math.round(base * k * 100) / 100;
   return {usd: u, uzs: toUzs(u), points: pts, gi, grade: s.grades[gi].label, gradeLetter: ["A", "B", "C", "D"][Math.min(gi, 3)], lines, adj, sellUsd: Math.round(u * 100 / (100 - s.discPct))};
@@ -833,7 +834,7 @@ async function saveAriza() {
       status: "yangi", no, branchId: st?.branchId || "",
       client: {name: W.name.slice(0, 60), phone}, note: W.note.slice(0, 500),
       device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, answers: answers(),
-               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter || "D", fv: 2}},
+               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter || "D", fv: 3}},
       deviceUzs: c.uzs, stockId: st ? st.id : "", ourModel: st ? `${st.modelName} ${st.mem || ""}`.trim() : "", ourUzs: st ? toUzs(st.sellUsd) : 0,
       diffUzs: diff, payType: p ? "nasiya" : "", months: p ? W.months : 0, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0,
       kurs: S.settings.kurs, createdAt: serverTimestamp()});

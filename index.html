@@ -256,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-3";
+const APP_VERSION = "2026.10.16-4";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -323,7 +323,8 @@ function battAdj(m, a, s) {
   if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const cd = Math.min(50, Math.max(0, +a.cyc) / 100 * cp); if (cd > 0) out.push(Math.round(cd * 100) / 100); }
   return out;
 }
-function calcTradein(m, mem, a, s, legacy = false) {
+function calcTradein(m, mem, a, s, fv = 3) {
+  const legacy = fv < 2;
   const mi = Math.max(0, m.mems.indexOf(mem));
   const market = m.market + m.step * mi;
   const base = Math.round(market * (100 - s.discPct)) / 100;
@@ -336,7 +337,11 @@ function calcTradein(m, mem, a, s, legacy = false) {
     if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const c = s.cycPts.find(x => a.cyc <= x.max) || s.cycPts[s.cycPts.length - 1]; pts += c.p; }
   }
   let gi = s.grades.findIndex(g => pts <= g.max); if (gi < 0) gi = s.grades.length - 1;
-  let k = 1 - s.grades[gi].pct / 100; if (a.box === "no") k *= 1 - s.noBoxPct / 100;
+  // fv 3: har bir nuqson narxdan o'z foizini ayiradi (daraja faqat nom); fv 1–2: daraja chegirmasi
+  let k = 1;
+  if (fv >= 3) for (const q of ["screen","body","bio","cam","repair"]) { const o = (s.pts[q] || []).find(o => o.v === a[q]); if (o && o.p) k *= 1 - o.p / 100; }
+  else k = 1 - s.grades[gi].pct / 100;
+  if (a.box === "no") k *= 1 - s.noBoxPct / 100;
   if (!legacy) battAdj(m, a, s).forEach(p => k *= 1 - p / 100);
   return {usd: Math.round(base * k * 100) / 100, points: pts, grade: s.grades[gi].label};
 }
@@ -757,7 +762,7 @@ function stockModal() {
 function dealCheck(d) {
   const m = S.models.find(x => x.id === d.device?.modelId);
   if (!m || !d.device?.answers || !S.settings) return null;
-  const c = calcTradein(m, d.device.mem, d.device.answers, S.settings, !(d.device.calc?.fv >= 2));
+  const c = calcTradein(m, d.device.mem, d.device.answers, S.settings, d.device.calc?.fv || 1);
   // Sotuvchi narxni qo'lda o'zgartirgan bo'lsa — farq xato emas, sababi bilan ko'rsatiladi
   if (d.device?.manual) return {expected: c.usd, bad: false, manual: true};
   return {expected: c.usd, bad: Math.abs(c.usd - d.deviceUsd) > 0.6};
@@ -1482,9 +1487,9 @@ function renderSettings() {
     </div>
     <p class="src">Diqqat: kurs o'zgarganda planshetlardagi ilova ham yangi kursni oladi. Sotuvchi trade-in jarayonining o'rtasida bo'lsa, shartnomani qayta tuzishi kerak bo'ladi.</p>
   </div>
-  <div class="panel"><h3 style="margin-top:0">Shikast darajalari</h3><div class="tw"><table><thead><tr><th>Daraja</th><th>Ball oralig'i</th><th>Ball, gacha</th><th>Chegirma, %</th></tr></thead><tbody>
-    ${s.grades.map((g, i) => `<tr><td>${esc(g.label)}</td><td>${gFrom(i)}${i === s.grades.length - 1 ? "+" : "–" + g.max}</td><td>${i < s.grades.length - 1 ? num(`grades.${i}.max`, g.max) : "—"}</td><td>${num(`grades.${i}.pct`, g.pct)}</td></tr>`).join("")}</tbody></table></div></div>
-  <div class="panel"><h3 style="margin-top:0">Shikast ballari</h3><div class="tw"><table><thead><tr><th>Savol</th><th>Javob</th><th>Ball</th></tr></thead><tbody>
+  <div class="panel"><h3 style="margin-top:0">Holat darajalari</h3><p class="sub">Daraja (A'lo, Yaxshi...) faqat nom uchun: mijoz va sotuvchiga ko'rsatiladi. Narxga har bir nuqsonning o'z foizi ta'sir qiladi.</p><div class="tw"><table><thead><tr><th>Daraja</th><th>Ball oralig'i</th><th>Ball, gacha</th></tr></thead><tbody>
+    ${s.grades.map((g, i) => `<tr><td>${esc(g.label)}</td><td>${gFrom(i)}${i === s.grades.length - 1 ? "+" : "–" + g.max}</td><td>${i < s.grades.length - 1 ? num(`grades.${i}.max`, g.max) : "—"}</td></tr>`).join("")}</tbody></table></div></div>
+  <div class="panel"><h3 style="margin-top:0">Nuqsonlar</h3><div class="tw"><table><thead><tr><th>Savol</th><th>Javob</th><th>Narxdan chegirma, % (= ball)</th></tr></thead><tbody>
     ${Object.entries(s.pts).map(([k, arr]) => arr.map((o, i) => `<tr><td>${i === 0 ? PT_NAME[k] || k : ""}</td><td>${esc(o.label)}</td><td>${num(`pts.${k}.${i}.p`, o.p)}</td></tr>`).join("")).join("")}
   </tbody></table></div></div>
   <div class="panel"><h3 style="margin-top:0">Batareya ta'siri</h3><p class="sub">Batareya sig'imi va sikli narxdan to'g'ridan-to'g'ri foiz ayiradi. Misol (0,5% va 1%): 90% · 250 sikl → −5% va −2,5%.</p>
