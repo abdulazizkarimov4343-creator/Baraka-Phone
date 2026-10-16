@@ -291,7 +291,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-10";
+const APP_VERSION = "2026.10.16-11";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -352,7 +352,7 @@ const stable = v => Array.isArray(v) ? "[" + v.map(stable).join(",") + "]" : v &
 function hasCycles(m) { return m && m.brand === "Apple" && /iPhone (1[5-9]|[2-9]\d|Air)/.test(m.name); }
 // Har 1% batareya kamayishi uchun battPct%, har 100 sikl uchun cycPct% (admin Sozlamalarda o'zgartiradi)
 function battAdj(m, a, s) {
-  const r = Math.round, out = [], bp = s.battPct ?? 0.5, cp = s.cycPct ?? 1, batt = a.batt ?? 100;
+  const r = Math.round, out = [], bp = s.battPct ?? 1, cp = s.cycPct ?? 1, batt = a.batt ?? 100;
   const bd = Math.min(50, Math.max(0, 100 - batt) * bp); if (bd > 0) out.push([`Batareya ${batt}%`, r(bd * 100) / 100]);
   if (hasCycles(m) && a.cyc != null && a.cyc !== "") { const cd = Math.min(50, Math.max(0, +a.cyc) / 100 * cp); if (cd > 0) out.push([`Batareya sikli: ${a.cyc}`, r(cd * 100) / 100]); }
   return out;
@@ -769,7 +769,7 @@ async function saveDeal() {
     b.set(dealRef, {
       branchId: S.me.branchId, sellerId: S.me.id, sellerName: S.me.fullName || "", client, contractNo,
       device: {modelId: m.id, brand: m.brand, name: m.name, mem: W.mem, color: W.color, imei: digits(W.imei), answers: answers(),
-               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter, fv: 3},
+               calc: {usd: c.usd, uzs: c.uzs, points: c.points, grade: c.grade, gradeLetter: c.gradeLetter, fv: 5},
                ...(c.manual ? {manual: {uzs: c.uzs, autoUzs: c.autoUzs, reason: W.manual.reason, by: S.me.id, byName: S.me.fullName || ""}} : {})},
       deviceUsd: c.usd, deviceUzs: c.uzs, stockId: st.id, ourModel: `${st.modelName} ${st.mem || ""}`.trim(), ourUsd: st.sellUsd, ourUzs: our,
       diffUzs: diff, months, monthlyUzs: p ? p.monthly : 0, totalUzs: p ? p.total : 0, kurs, newStockId: newRef.id, photoCount,
