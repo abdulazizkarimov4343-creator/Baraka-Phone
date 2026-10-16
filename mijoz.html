@@ -240,7 +240,9 @@ select.inp{appearance:auto}
 .pcard{display:flex;flex-direction:column;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:10px;gap:8px;box-shadow:0 1px 3px rgba(0,41,125,.05);transition:border-color .15s,box-shadow .15s}
 .pcard:hover{box-shadow:0 6px 18px rgba(0,41,125,.1)}
 .pcard.on{border-color:var(--g);box-shadow:0 0 0 2px var(--g)}
-.pcard .pimg{display:grid;place-items:center;background:#fff;border-radius:12px;aspect-ratio:4/3;overflow:hidden;padding:6px}
+.pcard .pimg{position:relative;display:grid;place-items:center;background:#fff;border-radius:12px;aspect-ratio:4/3;overflow:hidden;padding:6px}
+.pcard .pcond{position:absolute;top:8px;left:8px;z-index:1;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;background:#00297D;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.pcard .pcond.new{background:#1E9E5A}
 .pcard .pimg img{width:100%;height:100%;object-fit:contain}
 .pcard .pimg svg{width:46%;height:auto}
 .pbody{display:flex;flex-direction:column;gap:4px;padding:0 4px 4px}
@@ -296,7 +298,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.16-4";
+const APP_VERSION = "2026.10.16-5";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -669,9 +671,9 @@ function hero(ic, ti, s) { return `<div class="hero"><div class="ic">${ic}</div>
 
 /* ---- Telefon kartochkasi: rasm, ma'lumotlar, narx ---- */
 function pcard(s, on) {
-  const specs = [t(s.cond === "yangi" ? "Yangi" : "B/U"), s.battery ? t("Batareya {n}%", {n: s.battery}) : "", s.cyc != null && s.cyc !== "" ? t("{n} sikl", {n: s.cyc}) : "", s.box ? t(s.box === "yes" ? "Qutisi bor" : "Qutisiz") : "", s.grade ? gradeOf(s.grade) : ""].filter(Boolean);
+  const isNew = s.cond === "yangi", specs = [s.battery ? t("Batareya {n}%", {n: s.battery}) : "", s.cyc != null && s.cyc !== "" ? t("{n} sikl", {n: s.cyc}) : "", s.box ? t(s.box === "yes" ? "Qutisi bor" : "Qutisiz") : "", s.grade ? gradeOf(s.grade) : ""].filter(Boolean);
   return `<button class="pcard ${on ? "on" : ""}" data-stock="${esc(s.id)}">
-    <span class="pimg">${imgOf(s)}</span>
+    <span class="pimg"><span class="pcond ${isNew ? "new" : ""}">${esc(t(isNew ? "Yangi" : "B/U"))}</span>${imgOf(s)}</span>
     <span class="pbody"><b class="pname">${esc(s.modelName)}</b><span class="pmeta">${esc(s.mem || "")}${s.color ? " · " + esc(colorUz(s.color)) : ""}</span>
       ${specs.length ? `<span class="pspecs">${specs.map(x => `<span>${esc(x)}</span>`).join("")}</span>` : ""}
       <span class="pprice">${uzs(toUzs(s.sellUsd))}</span>${S.branches.length > 1 ? `<span class="pbranch">${esc(bName(s.branchId))}</span>` : ""}</span></button>`;
