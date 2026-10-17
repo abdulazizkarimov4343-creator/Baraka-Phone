@@ -294,7 +294,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, collection, quer
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.17-4";
+const APP_VERSION = "2026.10.17-5";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -1097,16 +1097,35 @@ function buyDefects(x) {
 }
 function openBuyContract(id) {
   const x = S.arizalar.find(a => a.id === id), b = x?.bought; if (!b) return;
-  const d = x.device || {}, req = b.contract?.req || reqBranches().find(r => r.id === (b.contract?.branchId || x.branchId))?.req || reqBranches()[0]?.req || {};
+  withReq(b.contract?.branchId || x.branchId, b.contract?.req, req => buyContractWith(x, b, req));
+}
+function buyContractWith(x, b, req) {
+  const d = x.device || {};
   Shartnoma.open(Shartnoma.buyHtml({no: b.contract?.no || x.no, date: b.at, req,
     client: {name: x.client?.name, passport: b.passport, phone: fmtPhone(x.client?.phone)},
     items: [{name: [d.name, d.mem, d.color].filter(Boolean).join(" "), cond: buyCondText(x), imei: b.imei, sum: b.priceUzs}],
     defects: buyDefects(x), terms: S.settings.contract || {}}));
 }
 /* ---- Sotish shartnomasi: trade-in (deals) va oddiy sotuv (sales) ---- */
+// Savdo bo'lgan filialda rekvizit bo'lmasa (masalan Ofis), shartnoma qaysi firma nomidan ekanini so'raydi
+function withReq(branchId, saved, go) {
+  if (saved?.firm) return go(saved);
+  const list = reqBranches(), own = list.find(r => r.id === branchId);
+  if (own) return go(own.req);
+  if (!list.length) return toast("Filial rekvizitlari kiritilmagan. Admin → Filiallar bo'limida rekvizitlarni to'ldiring.", true);
+  if (list.length === 1) return go(list[0].req);
+  modal(`<h2>Shartnoma qaysi firma nomidan?</h2><p class="sub">Bu savdo bo'lgan filialda shartnoma rekvizitlari yo'q. Firmani tanlang.</p>
+  <div class="field"><select class="inp" id="wrSel">${list.map(b => `<option value="${b.id}">${esc(b.name)} — ${esc(b.req.firm)}</option>`).join("")}</select></div>
+  <div class="acts"><button class="btn sec" id="wrNo">Bekor qilish</button><button class="btn pri" id="wrOk">📄 Shartnomani ochish</button></div>`);
+  $("#wrNo").onclick = closeModal;
+  $("#wrOk").onclick = () => { const r = list.find(b => b.id === $("#wrSel").value).req; closeModal(); go(r); };
+}
 function openSellContract(kind, id) {
   const isDeal = kind === "deal", x = (isDeal ? S.deals : S.sales).find(d => d.id === id); if (!x) return;
-  const st = S.stock.find(s => s.id === x.stockId) || {}, req = reqBranches().find(r => r.id === x.branchId)?.req || {};
+  withReq(x.branchId, null, req => sellContractWith(isDeal, x, id, req));
+}
+function sellContractWith(isDeal, x, id, req) {
+  const st = S.stock.find(s => s.id === x.stockId) || {};
   const sch = x.schedule || [], price = isDeal ? x.ourUzs : x.priceUzs, tradeUzs = isDeal ? x.deviceUzs : 0;
   const dv = x.device || {};
   Shartnoma.open(Shartnoma.sellHtml({no: x.contractNo || id.slice(0, 6).toUpperCase(), date: x.createdAt, req,
