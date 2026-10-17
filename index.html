@@ -256,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.16-12";
+const APP_VERSION = "2026.10.17-1";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -1518,7 +1518,7 @@ function renderSettings() {
       <td class="n"><input class="inp sm" type="number" data-mk="${m.id}" value="${m.market}"></td>
       <td class="n"><input class="inp sm" style="width:80px" type="number" data-ms="${m.id}" value="${m.step}"></td>
       <td class="n">${uzs(toUzs(m.market * (100 - S.settings.discPct) / 100))}</td>
-      <td><button class="btn ${m.active !== false ? "sec" : "gold"} sm" data-ma="${m.id}">${m.active !== false ? "Yashirish" : "Ko'rsatish"}</button></td></tr>`).join("");
+      <td><button class="btn ${m.active !== false ? "sec" : "gold"} sm" data-ma="${m.id}">${m.active !== false ? "Yashirish" : "Ko'rsatish"}</button> <button class="btn bad sm" data-mdel="${m.id}" title="Modelni o'chirish">O'chirish</button></td></tr>`).join("");
     document.querySelectorAll("[data-mk],[data-ms]").forEach(inp => inp.onchange = async () => {
       const id = inp.dataset.mk || inp.dataset.ms, f = inp.dataset.mk ? "market" : "step", v = +inp.value; if (!(v >= 0)) return;
       try { await updateDoc(doc(db, "models", id), {[f]: v}); S.models.find(m => m.id === id)[f] = v; rows(); toast("Saqlandi"); } catch (e) { toast(errText(e), true); }
@@ -1535,6 +1535,11 @@ function renderSettings() {
       };
     });
     document.querySelectorAll("[data-mimg]").forEach(b => b.onclick = () => modelImgModal(S.models.find(x => x.id === b.dataset.mimg), rows));
+    document.querySelectorAll("[data-mdel]").forEach(b => b.onclick = async () => {
+      const m = S.models.find(x => x.id === b.dataset.mdel);
+      if (!await confirmBox(`<b>${esc(m.name)}</b> modelini butunlay o'chirasizmi? U mijoz sahifasi, sotuvchi ilovasi va narxlar ro'yxatidan yo'qoladi. Ombordagi telefonlar va shartnomalar o'zgarmaydi.`, "O'chirish")) return;
+      try { await deleteDoc(doc(db, "models", m.id)); S.models = S.models.filter(x => x.id !== m.id); rows(); toast("Model o'chirildi"); } catch (e) { toast(errText(e), true); }
+    });
     document.querySelectorAll("[data-ma]").forEach(b => b.onclick = async () => {
       const m = S.models.find(x => x.id === b.dataset.ma), v = m.active === false;
       try { await updateDoc(doc(db, "models", m.id), {active: v}); m.active = v; rows(); toast(v ? "Model ko'rsatiladi" : "Model ilovada yashirildi"); } catch (e) { toast(errText(e), true); }
