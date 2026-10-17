@@ -259,7 +259,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.17-5";
+const APP_VERSION = "2026.10.17-6";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -1722,15 +1722,33 @@ function addModelModal(done) {
     <div class="field"><label>Xotiralar (vergul bilan, kichigidan)</label><input class="inp" id="amMems" placeholder="256 GB, 512 GB, 1 TB"></div>
     <div class="field"><label>Ranglar (vergul bilan)</label><input class="inp" id="amColors"></div>
     <div class="row"><div class="field"><label>Bozor narxi, $</label><input class="inp" id="amMarket" type="number"></div><div class="field"><label>+ pog'ona, $</label><input class="inp" id="amStep" type="number" value="0"></div></div>
+    <div id="amPrev"></div>
     <div id="amErr" class="err hidden"></div>
     <div class="acts"><button class="btn sec" id="amCancel">Bekor qilish</button><button class="btn pri" id="amSave">Qo'shish</button></div>`);
     $("#amCancel").onclick = closeModal;
+    // Model nomi Apple'ning ma'lum modeliga mos kelsa — rasm, ranglar, xotira va narx o'zi to'ladi
+    let filled = null;
+    $("#amName").oninput = () => {
+      const name = $("#amName").value.trim(), def = appleDefOf({name}), img = appleImg(name), box = $("#amPrev");
+      if (def && filled !== def.name) {
+        filled = def.name;
+        $("#amColors").value = def.colors.join(", ");
+        if (!$("#amMems").value.trim()) $("#amMems").value = def.mems.join(", ");
+        if (!$("#amMarket").value) $("#amMarket").value = def.market;
+        if (!+$("#amStep").value) $("#amStep").value = def.step;
+      }
+      if (!def) filled = null;
+      box.innerHTML = img ? `<div class="note" style="margin:0 0 10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><img src="${img}" alt="" style="width:110px;height:82px;object-fit:contain;background:#fff;border-radius:8px">
+        <div><b>Apple'ning rasmiy rasmi biriktiriladi</b>${def ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${def.colors.map(c => `<span style="text-align:center;font-size:11px;width:56px"><img src="img/iphone/${slugOf(def.name)}/${cSlugA(c)}.jpg" alt="" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:8px" onerror="this.style.visibility='hidden'"><br>${esc(c)}</span>`).join("")}</div>` : ""}</div></div>`
+        : name.length > 8 ? `<p class="src" style="margin:0 0 10px">Bu model uchun tayyor rasm va ranglar yo'q. Ranglarni o'zingiz yozing, rasmni qo'shgandan keyin "+ Rasm" tugmasi orqali biriktirasiz.</p>` : "";
+    };
     $("#amSave").onclick = async () => {
       const split = v => v.split(",").map(x => x.trim()).filter(Boolean);
       const m = {brand: $("#amBrand").value.trim(), name: $("#amName").value.trim(), mems: split($("#amMems").value), colors: split($("#amColors").value),
                  market: +$("#amMarket").value, step: +$("#amStep").value || 0, sort: Math.min(0, ...S.models.map(x => x.sort || 0)) - 1, active: true, custom: true};
       if (!m.brand || !m.name || !m.mems.length || !(m.market > 0)) { $("#amErr").textContent = "Brend, model, xotira va narxni kiriting"; $("#amErr").classList.remove("hidden"); return; }
       if (S.models.some(x => x.name.toLowerCase() === m.name.toLowerCase() && IN_RANGE(x))) { $("#amErr").textContent = "Bu model ro'yxatda bor"; $("#amErr").classList.remove("hidden"); return; }
+      if (appleImg(m.name)) m.img = appleImg(m.name);
       try { const ref = doc(collection(db, "models")); await setDoc(ref, m); S.models.unshift({id: ref.id, ...m}); closeModal(); done && done(); toast("Model qo'shildi"); }
       catch (e) { $("#amErr").textContent = errText(e); $("#amErr").classList.remove("hidden"); }
     };
