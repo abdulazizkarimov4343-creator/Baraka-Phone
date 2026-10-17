@@ -298,7 +298,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= VERSIYA VA AVTO-YANGILANISH ================= */
-const APP_VERSION = "2026.10.16-11";
+const APP_VERSION = "2026.10.17-2";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -640,7 +640,9 @@ const gradeOf = letter => t(S.settings.grades[Math.max(0, "ABCD".indexOf(letter)
 const modelOfStock = s => S.allModels.find(m => m.name === s.modelName && (!s.brand || m.brand === s.brand));
 const PHONE_SVG = `<svg viewBox="0 0 120 200" aria-hidden="true"><rect x="22" y="8" width="76" height="184" rx="18" fill="#E7ECF5" stroke="#C5D2EC" stroke-width="3"/><rect x="46" y="18" width="28" height="7" rx="3.5" fill="#C5D2EC"/></svg>`;
 // Apple'ning rasmiy rasmlari (support.apple.com) — img/iphone/; admin qo'ygan rasm ustun turadi
-const slugOf = n => String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Admin boshqacha yozgan nomlar ham Apple rasmiga bog'lanadi (masalan "iPhone 17 Air" = Apple'da "iPhone Air")
+const SLUG_ALIAS = {"iphone-17-air": "iphone-air"};
+const slugOf = n => { const s = String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); return SLUG_ALIAS[s] || s; };
 const appleImg = n => APPLE_IMGS.has(slugOf(n)) ? `img/iphone/${slugOf(n)}.jpg` : "";
 // Har bir rang uchun alohida rasm (Apple Store) — img/iphone/<model>/<rang>.jpg
 const cSlug = c => String(c || "").toLowerCase().replace(/\(product\)/g, "product").replace(/[^a-z0-9]/g, "");

@@ -256,7 +256,7 @@ import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, colle
 /* ================= VERSIYA VA AVTO-YANGILANISH =================
    Telefon yoki brauzer eski nusxani eslab qolsa ham, sahifa serverdagi
    versiyani tekshiradi va yangisi bo'lsa o'zini qayta yuklaydi. */
-const APP_VERSION = "2026.10.17-1";
+const APP_VERSION = "2026.10.17-3";
 (async () => {
   try {
     const r = await fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"});
@@ -1452,17 +1452,30 @@ function shrinkImage(file) {
 }
 // Mijoz sahifasidagi standart rasmlar (img/iphone/) — admin rasm qo'ymasa shular chiqadi
 const APPLE_IMGS = new Set(["iphone-11", "iphone-11-pro", "iphone-11-pro-max", "iphone-12", "iphone-12-mini", "iphone-12-pro", "iphone-12-pro-max", "iphone-13", "iphone-13-mini", "iphone-13-pro", "iphone-13-pro-max", "iphone-14", "iphone-14-plus", "iphone-14-pro", "iphone-14-pro-max", "iphone-15", "iphone-15-plus", "iphone-15-pro", "iphone-15-pro-max", "iphone-16", "iphone-16-plus", "iphone-16-pro", "iphone-16-pro-max", "iphone-16e", "iphone-17", "iphone-17-pro", "iphone-17-pro-max", "iphone-17e", "iphone-18-pro", "iphone-18-pro-max", "iphone-air", "iphone-se-2022", "iphone-xr", "iphone-xs", "iphone-xs-max"]);
-const slugOf = n => String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Admin boshqacha yozgan nomlar ham Apple rasmiga bog'lanadi (masalan "iPhone 17 Air" = Apple'da "iPhone Air")
+const SLUG_ALIAS = {"iphone-17-air": "iphone-air"};
+const slugOf = n => { const s = String(n || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); return SLUG_ALIAS[s] || s; };
 const appleImg = n => APPLE_IMGS.has(slugOf(n)) ? `img/iphone/${slugOf(n)}.jpg` : "";
+// Apple'ning shu modeli (nomi boshqacha yozilgan bo'lsa ham) — rasmi va standart ranglari
+const cSlugA = c => String(c || "").toLowerCase().replace(/\(product\)/g, "product").replace(/[^a-z0-9]/g, "");
+const appleDefOf = m => appleImg(m.name) ? DEF_MODELS.find(d => slugOf(d.name) === slugOf(m.name) && d.colors?.length) : null;
 function modelImgModal(m, done) {
   let src = m.img || "";
+  const appleDef = appleDefOf(m);
   const prev = () => { $("#miPrev").innerHTML = !src && appleImg(m.name) ? `<div style="text-align:center"><img src="${appleImg(m.name)}" alt="" style="max-width:100%;max-height:200px;object-fit:contain"><div class="src">Hozir Apple'ning rasmiy rasmi ko'rsatiladi. O'zgartirish uchun havola yoki fayl qo'ying.</div></div>` : src ? `<img src="${esc(src)}" alt="" style="max-width:100%;max-height:220px;object-fit:contain" onerror="this.parentNode.innerHTML='<span class=src>Rasm ochilmadi — havolani tekshiring</span>'">` : `<span class="src">Rasm yo'q</span>`; };
   modal(`<h2>${esc(m.name)} — rasm</h2><p class="sub">Oq fondagi rasm mijoz sahifasidagi telefon kartochkasida chiqadi.</p>
   <div id="miPrev" style="display:grid;place-items:center;min-height:160px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px"></div>
   <div class="field"><label>Rasm havolasi</label><input class="inp" id="miUrl" placeholder="https://… (rasmga o'ng tugma → «Копировать адрес изображения»)" value="${esc(src.startsWith("data:") ? "" : src)}"></div>
   <div class="field"><label>yoki fayl yuklash</label><input class="inp" id="miFile" type="file" accept="image/*"></div>
+  ${appleDef ? `<div class="note" style="margin:0 0 12px"><b>Apple'ning rasmiy rasmi va ranglari</b> (${esc(appleDef.name)}):
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">${appleDef.colors.map(c => `<span style="text-align:center;font-size:11px;width:64px"><img src="img/iphone/${slugOf(appleDef.name)}/${cSlugA(c)}.jpg" alt="" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px" onerror="this.style.visibility='hidden'"><br>${esc(c)}</span>`).join("")}</div>
+    <button class="btn gold sm" id="miApple">🍏 Apple rasmi va ranglarini biriktirish</button></div>` : ""}
   <div class="acts">${m.img ? `<button class="btn bad" id="miDel" style="margin-right:auto">Rasmni o'chirish</button>` : ""}<button class="btn sec" id="miNo">Bekor qilish</button><button class="btn pri" id="miOk">Saqlash</button></div>`);
   prev();
+  if ($("#miApple")) $("#miApple").onclick = async () => {
+    try { await updateDoc(doc(db, "models", m.id), {img: appleImg(m.name), colors: appleDef.colors}); m.img = appleImg(m.name); m.colors = appleDef.colors.slice(); closeModal(); done(); toast("Apple rasmi va " + appleDef.colors.length + " ta rang biriktirildi"); }
+    catch (e) { toast(errText(e), true); }
+  };
   $("#miUrl").oninput = e => { src = e.target.value.trim(); prev(); };
   $("#miFile").onchange = async e => { const f = e.target.files?.[0]; if (!f) return; try { src = await shrinkImage(f); $("#miUrl").value = ""; prev(); } catch (er) { toast(er.message, true); } };
   $("#miNo").onclick = closeModal;
