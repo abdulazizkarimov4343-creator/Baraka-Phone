@@ -8,6 +8,7 @@ rules_version = '2';
 //  Asosiy tamoyil: hamma narsa yopiq, faqat kerakli eshiklar ochiladi.
 //   • Mijoz (login yo'q)   — narxlar, modellar, vitrina; faqat yangi ariza yuboradi.
 //   • Sotuvchi             — faqat O'Z filiali ombori, shartnomalari, sotuvlari.
+//   • Ofis xodimi          — barcha filiallar (ofisga biriktirilgan sotuvchi).
 //   • Admin                — hammasi.
 //   • Tizim egasi (setup)  — shartnomani o'chirish, sotilgan telefonni o'chirish,
 //                            o'z profilini faqat o'zi o'zgartiradi.
@@ -25,6 +26,8 @@ service cloud.firestore {
     function myBranch()   { return me().branchId; }
     function setupPath()  { return /databases/$(database)/documents/meta/setup; }
     function setupDone()  { return exists(setupPath()); }
+    // Ofis xodimi: biriktirilgan "filiali" ofis bo'lsa (branches/{id}.isOffice), barcha filiallarda ishlaydi
+    function isOffice()   { return isStaff() && myBranch() is string && get(/databases/$(database)/documents/branches/$(myBranch())).data.get('isOffice', false) == true; }
     function isOwner()    { return isAdmin() && setupDone() && get(setupPath()).data.by == request.auth.uid; }
     function newData()    { return request.resource.data; }
     function changed()    { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -73,13 +76,13 @@ service cloud.firestore {
 
     // ---------- Ombor ----------
     match /stock/{id} {
-      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch()) || isOffice();
       allow create: if isAdmin()
-                    || (isStaff() && newData().branchId == myBranch() && newData().createdBy == request.auth.uid
+                    || (isStaff() && (newData().branchId == myBranch() || isOffice()) && newData().createdBy == request.auth.uid
                         && newData().status in ['tayyorlanmoqda', 'sotuvda']);
       // Sotuvchi faqat o'z filialidagi "Sotuvda" telefonni "Sotilgan" qiladi — narx, tannarx va boshqa maydonlarga tegolmaydi
       allow update: if isAdmin()
-                    || (isStaff() && resource.data.branchId == myBranch()
+                    || (isStaff() && (resource.data.branchId == myBranch() || isOffice())
                         && resource.data.status == 'sotuvda' && newData().status == 'sotilgan'
                         && changed().hasOnly(['status', 'sold', 'updatedAt']));
       allow delete: if isAdmin() && (resource.data.status != 'sotilgan' || isOwner());
@@ -87,14 +90,14 @@ service cloud.firestore {
 
     // ---------- Shartnomalar (trade-in) va sotuvlar ----------
     match /deals/{id} {
-      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
-      allow create: if isAdmin() || (isStaff() && newData().branchId == myBranch() && newData().sellerId == request.auth.uid);
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch()) || isOffice();
+      allow create: if isAdmin() || (isStaff() && (newData().branchId == myBranch() || isOffice()) && newData().sellerId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if isOwner();
     }
     match /sales/{id} {
-      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch());
-      allow create: if isAdmin() || (isStaff() && newData().branchId == myBranch() && newData().sellerId == request.auth.uid);
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId == myBranch()) || isOffice();
+      allow create: if isAdmin() || (isStaff() && (newData().branchId == myBranch() || isOffice()) && newData().sellerId == request.auth.uid);
       allow update: if isAdmin();
       allow delete: if isOwner();
     }
@@ -103,7 +106,7 @@ service cloud.firestore {
     match /photos/{id} {
       allow read: if isStaff();
       allow create: if isStaff() && newData().createdBy == request.auth.uid
-                    && (isAdmin() || newData().branchId == myBranch())
+                    && (isAdmin() || newData().branchId == myBranch() || isOffice())
                     && str(newData().data, 400000);
       allow update: if false;
       allow delete: if isAdmin();
@@ -150,9 +153,9 @@ service cloud.firestore {
                     && num(newData().get('totalUzs', 0))
                     && num(newData().get('kurs', 0));
       // Xodimlar: admin hammasini, sotuvchi o'z filiali va filiali tanlanmagan ("") arizalarni ko'radi
-      allow read: if isAdmin() || (isStaff() && resource.data.branchId in [myBranch(), '']);
+      allow read: if isAdmin() || (isStaff() && resource.data.branchId in [myBranch(), '']) || isOffice();
       allow update: if isAdmin()
-                    || (isStaff() && resource.data.branchId in [myBranch(), '']
+                    || (isStaff() && (resource.data.branchId in [myBranch(), ''] || isOffice())
                         && !changed().hasAny(['client', 'no', 'createdAt', 'branchId']));
       allow delete: if isAdmin();
     }
